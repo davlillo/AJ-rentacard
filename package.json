@@ -1,0 +1,48 @@
+{
+  "name": "aj-rentacar-mockups",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-concurrency=3 tests/*.test.ts tests/review/*.test.ts",
+    "local:start": "node scripts/start-local.mjs",
+    "local:status": "supabase status",
+    "local:migrate": "supabase migration up --local",
+    "local:setup": "node scripts/setup-local.mjs",
+    "test:local": "node --import tsx --test --test-concurrency=1 tests/local/*.test.ts",
+    "local:reports": "node scripts/report-worker.mjs",
+    "local:reports:once": "node scripts/report-worker.mjs --once",
+    "test:roles": "node scripts/test-role-access.mjs"
+  },
+  "dependencies": {
+    "@fontsource/manrope": "^5.2.0",
+    "@pdf-lib/fontkit": "1.1.1",
+    "@radix-ui/react-dialog": "^1.1.0",
+    "@radix-ui/react-slot": "^1.2.0",
+    "@supabase/supabase-js": "^2.90.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "gsap": "^3.13.0",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "pdf-lib": "1.17.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^3.0.0",
+    "tailwind-merge": "^3.0.0",
+    "tailwindcss": "^4.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "supabase": "2.104.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

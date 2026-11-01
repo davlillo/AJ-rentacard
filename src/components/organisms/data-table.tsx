@@ -1,0 +1,5 @@
+'use client';
+import {Search,ArrowDownToLine,SlidersHorizontal,ChevronRight,Inbox} from 'lucide-react';import {Button} from '@/components/ui/button';
+export function TableTools({query,onQuery,placeholder='Buscar...',children,onExport}:{query:string;onQuery:(s:string)=>void;placeholder?:string;children?:React.ReactNode;onExport?:()=>void}){return <div className="table-tools"><div className="search-field"><Search size={16}/><input aria-label={placeholder} placeholder={placeholder} value={query} onChange={e=>onQuery(e.target.value)}/></div><div className="filter-tools">{children}{onExport&&<Button variant="outline" size="sm" onClick={onExport}><ArrowDownToLine size={14}/>Exportar</Button>}</div></div>;}
+export function Empty({text='No encontramos resultados.'}:{text?:string}){return <div className="empty"><Inbox size={30}/><strong>{text}</strong><span>Probá otra búsqueda o agregá un registro.</span></div>;}
+export function SectionTitle({title,sub,action}:{title:string;sub?:string;action?:React.ReactNode}){return <div className="section-title"><div><h2>{title}</h2>{sub&&<p>{sub}</p>}</div>{action}</div>;}

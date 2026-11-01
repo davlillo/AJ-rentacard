@@ -1,0 +1,6 @@
+import type {BusinessData,Estimate} from '@/types';
+export const money=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
+export const round=(value:number)=>Math.round((value+Number.EPSILON)*100)/100;
+export function estimateTotals(e:Pick<Estimate,'lines'|'discount'>){const cost=round(e.lines.reduce((a,l)=>a+l.cost*l.quantity,0));const subtotal=round(e.lines.reduce((a,l)=>a+l.price*l.quantity,0));const total=round(subtotal-e.discount);return {cost,subtotal,total,margin:round(total-cost),marginPct:total>0?round((total-cost)/total*100):0};}
+export function getReceivables(d:BusinessData){return [...d.rentals.filter(r=>r.status!=='Cancelada').map(r=>({id:r.id,customerId:r.customerId,vehicleId:r.vehicleId,area:'Renta',total:r.total,paid:r.paid,due:r.end.slice(0,10)})),...d.orders.map(o=>({id:o.id,customerId:o.customerId,vehicleId:o.vehicleId,area:'Taller',total:o.estimate,paid:o.paid,due:o.due}))].filter(r=>round(r.total-r.paid)>0);}
+export function financeSummary(d:BusinessData){const income=d.movements.filter(m=>m.type==='Ingreso').reduce((a,m)=>a+m.amount,0);const expense=d.movements.filter(m=>m.type==='Egreso').reduce((a,m)=>a+m.amount,0);return {income:round(income),expense:round(expense),net:round(income-expense),receivable:round(getReceivables(d).reduce((a,r)=>a+r.total-r.paid,0))};}

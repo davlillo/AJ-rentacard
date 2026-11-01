@@ -1,0 +1,1 @@
+-- Local fixtures are created through authenticated commands by the acceptance tests.
