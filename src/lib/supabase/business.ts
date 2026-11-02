@@ -64,7 +64,7 @@ export async function loadBusiness(): Promise<BusinessData> {
       'occurredAt:occurred_at,createdAt:created_at,createdBy:created_by,internalJob:internal_job'),
     readRows<Expense>('expenses', '*'),
     readRows<WorkshopTask>('workshop_tasks', '*,orderId:order_id,assignedTo:assigned_to,assigneeLabel:assignee_label,createdAt:created_at'),
-    readRows<ReservationHistory>('reservations','id,vehicleId:vehicle_id,customerId:customer_id,start:starts_at,end:ends_at,status,rentalState:rental_state'),
+    readRows<ReservationHistory>('reservations','id,vehicleId:vehicle_id,customerId:customer_id,start:starts_at,end:ends_at,status,rentalState:rental_state,folioNumber:folio_number'),
     readRows<{id:string;vehicle_id:string;mime:string;purpose:string;financial:boolean;created_at:string}>('vehicle_files','id,vehicle_id,mime,purpose,financial,created_at'),
   ]);
   return {

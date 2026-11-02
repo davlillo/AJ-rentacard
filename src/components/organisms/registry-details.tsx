@@ -10,7 +10,7 @@ export function RegistryDetails({customer,vehicle,onChange}:{customer?:Customer;
   const fields=customer?[['name','Nombre o razón social'],['phone','Teléfono'],['email','Correo electrónico'],['document','Documento']]:
     [['plate','Placa'],['color','Color'],['km','Kilometraje confirmado'],['daily','Tarifa diaria (USD)']];
   return <details className="mt-5"><summary className="text-link">Completar o corregir datos</summary><form key={record.version} className="operation-form mt-4" onSubmit={event=>{
-    event.preventDefault();const form=new FormData(event.currentTarget);const payload={id:record.id,expectedVersion:record.version,
+    event.preventDefault();const form=new FormData(event.currentTarget);if(!form.get('status'))form.delete('status');const payload={id:record.id,expectedVersion:record.version,
       ...Object.fromEntries(form.entries())};const kind=customer?'customer':'vehicle';
     void execute('registry.'+kind,payload,async key=>{
       const {error}=await createSupabaseBrowserClient().rpc('save_registry_details',{kind,payload,idempotency_key:key});
@@ -24,7 +24,7 @@ export function RegistryDetails({customer,vehicle,onChange}:{customer?:Customer;
     type={key==='email'?'email':key==='phone'?'tel':['km','daily'].includes(key)?'number':'text'} required={key==='name'}
     min={key==='km'?vehicle?.km:0} step={key==='daily'?'0.01':'1'}
     defaultValue={vehicle?.unverified_fields?.includes(key)?'':String(record[key as keyof typeof record]??'')}/></label>)}</div>
-    {vehicle&&['Por confirmar','Disponible'].includes(vehicle.status)&&<label className="form-field"><span>Estado físico confirmado</span><select name="status" defaultValue={vehicle.status}><option>Por confirmar</option><option>Disponible</option></select></label>}
+    {vehicle?.status==='Por confirmar'&&<label className="form-field"><span>Disponibilidad del vehículo</span><select name="status" defaultValue=""><option value="">Conservar el estado actual</option><option value="Disponible">Confirmar disponible</option></select></label>}
     <label className="form-field"><span>Motivo o evidencia de la corrección *</span><textarea name="reason" required placeholder="Ej. verificación de documentos o inspección del vehículo"/></label>
     <Button type="submit" disabled={busy}>{busy?'Guardando…':'Guardar datos verificados'}</Button>
     {error&&<p className="form-error" role="alert">{error}</p>}

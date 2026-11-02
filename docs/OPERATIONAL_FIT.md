@@ -12,11 +12,11 @@ The October 30 expansion implements workflows derived from the four client workb
 | `/vehiculos/expediente/?id=<vehicle>` | Permanent vehicle page: independent visits, rentals, costs, documents, photos and fleet data. |
 | `/taller` | Todos los trabajos, Mecánica, Pintura and Tareas within the same module; customer cars remain outside the rental fleet. |
 | `/taller/ingreso/?id=<order>` | One workshop visit: intake inspection, photos, complete quote revisions, purchases, split receipts, tasks, collections and reviewed delivery. |
-| `/calendario` | Responsive weekly agenda, reservations and blocks; original annotations remain separately searchable. Existing secondary reservation/block URLs still work. |
+| `/calendario` | Six-week monthly calendar, colored commitments and a reservation list that highlights the selected date range. Existing reservation/block dialogs and secondary URLs still work. |
 | `/presupuestos` | Customer/vehicle/service-first editor without a prior physical intake; adaptive parts/labor lines, optional costs, complete revisions, approval and customer PDF. |
 | `/vehiculos/alquiler/?id=<reservation>` | One rental: agreement, departure/return, charged periods, receipts, expenses, photos and contract versions. |
 | `/libro-diario` | Receipts, expenses, refunds, transfers and confirmed openings. Archivo original shows readable historic source facts, not guessed postings. |
-| `/cobros` | Documents, receipts, allocations, credits and refunds, separate from original historical receivables annotations. |
+| `/cobros` | Operation cards showing budget, incurred costs, cash paid, charges, applied receipts and outstanding balance. Imports, grouped documents and adjustments remain in a secondary disclosure. |
 | `/archivos` | Secondary source-review page, linked from each Excel: organized observations and explicit reconciliation. Not required merely to see the originals. |
 
 The query-ID pages work with the existing static export: IDs are resolved after sign-in through authorized database APIs, not enumerated at build time. Direct URLs do not bypass permissions.
@@ -25,7 +25,7 @@ The query-ID pages work with the existing static export: IDs are resolved after 
 
 The primary menu is **Inicio, Clientes, Vehículos, Calendario, Taller, Presupuestos, Cargos y cobros, Libro diario**, filtered by the same permissions as before. Technicians still use the restricted assigned-task route behind Taller. Inventory, reports, assistant, configuration and source-review routes remain authorized secondary pages; hiding them from the main menu does not delete their API or data.
 
-The white/gray workspace with a red accent removes duplicate fleet navigation and session/SDK/development banners. Initial loading waits for permissions and data. Adaptive tables retain all fields and mobile headings without page-level or internal horizontal scrolling. Directories, fleet cards, budgets, workshop records, diary, calendar and original facts are paginated. Vehicle cards reserve photography space only when an actual photo exists.
+The white/gray workspace with a red accent removes duplicate fleet navigation and session/SDK/development banners. Initial loading waits for permissions and data. Adaptive tables retain all fields and mobile headings without page-level or internal horizontal scrolling. Directories, fleet cards, budgets, workshop records, diary, reservation lists and original facts are paginated. Vehicle cards offer private real-photo upload; missing photos use a neutral placeholder, never invented car photography. Uploaded photos also appear in cases, budget screens and collection cards.
 
 Original Excel views use structured searchable sections rather than a scaled spreadsheet grid. The original file remains byte-identical and privately downloadable; the review page exposes saved cells/formulas by row without a wide table. React renders cell content as text; formulas are never executed. Archive, sheet and cell limits still apply. Financial read permission remains required.
 
@@ -35,7 +35,7 @@ An available car is shown as **Reservado** when it has a confirmed, prepared, no
 
 `scripts/import-real-data.ts` subsequently loaded 16 named source contacts, 27 plated calendar cars and the unplated Nissan Rogue 2018, plus Rafael Vargas's 27-line draft quote totaling 2,190. The importer verifies original hashes, commits transactionally and can repeat without duplicating records. No phone, title, availability, odometer, daily rate, rental year or cash event was fabricated. Missing numeric storage defaults carry explicit `unverified_fields` and are not displayed as known zero values. Registry corrections require evidence, current version and authorization; physical readiness cannot bypass active rental/workshop workflows.
 
-New vehicle registration also accepts unknown odometer, color and rental rate; it does not force a customer-only quote into a rental workflow. It explicitly records unknown status instead of declaring the vehicle available. Identity corrections reuse preserved merge-alias matching. Folios format actual database sequences (`PRE-00002`, `OT-00021`, `CAR-…`, `REC-…`, `ALQ-…`); sequence gaps after rollback are normal and are not replaced with fabricated numbers or UUID fragments.
+New vehicle registration also accepts unknown odometer, color and rental rate; it does not force a customer-only quote into a rental workflow. New vehicles explicitly included in rental fleet start available; non-fleet quote vehicles retain unconfirmed physical status. Availability does not fabricate mileage or replace the rental departure/intake inspection. Identity corrections reuse preserved merge-alias matching. Folios format actual database sequences (`PRE-00002`, `OT-00021`, `CAR-…`, `REC-…`, `ALQ-…`); sequence gaps after rollback are normal and are not replaced with fabricated numbers or UUID fragments.
 
 ## Workshop visit
 
@@ -55,7 +55,7 @@ New vehicle registration also accepts unknown odometer, color and rental rate; i
 
 ## Rental fleet and open-ended rentals
 
-- `in_rental_fleet` is independent of title. The requested real-data load includes the 27 identified calendar cars in the managed fleet, with property and physical status `Por confirmar`. `registered_holder` is not evidence that AJ owns a car. The unplated calendar continuation is not a second vehicle.
+- `in_rental_fleet` is independent of title. The 27 imported calendar cars were initially unconfirmed. On November 1, the user explicitly confirmed their initial availability; all 27 are now **Disponible**, with mileage, rental rate and ownership still pending where unknown. `registered_holder` is not evidence that AJ owns a car. The unplated calendar continuation is not a second vehicle.
 - The physical state, future commitments and payment state are distinct. A future booking does not mean the car is physically out today. Paying does not release a car.
 - An open-ended rental stores an infinite occupancy boundary, not an invented return date or final price. Its UI and new contract PDFs state that there is no final agreed total. Confirmation still obeys the exclusion constraint.
 - When a return date becomes agreed, `set_end` checks conflicts and already billed periods. Actual return shortens physical occupancy independently of the original contract snapshot. Cleaning/review remains a separate release.
@@ -63,6 +63,30 @@ New vehicle registration also accepts unknown odometer, color and rental rate; i
 - A rental case contains that rental's share of documents and payments, not other rentals on the same vehicle. The permanent vehicle page remains the cross-operation history.
 
 ## Financial boundaries
+
+### Capture in the diary or the folio
+
+Migration `20261102000100` connects capture points without requiring a diary-first workflow:
+
+1. **Registrar gasto** uses the same form from Libro diario, a workshop folio, a budget or Cargos y cobros. Select a workshop destination immediately, or explicitly leave it **Por asociar**. Other vehicle, rental and administration destinations remain available.
+2. Associate an existing workshop expense from the diary or a folio's **Costos** section. A single cash source can be split across several jobs; the split must equal the original amount. The source expense is not rewritten and another cash outflow is not created. Linking to delivered work requires management.
+3. **Presupuestos → Costos ya registrados** shows source expenses. Incorporating a cost adds a draft line with its internal cost and a persistent origin allocation; enter the customer price separately. Opening a revision from a job retains the complete previous scope. Approval and differential charge issuance remain separate actions.
+4. **Registrar cobro / anticipo** is shared by diary, folio and collection card. An intended advance is visible in its operation before a charge exists. Applying an existing receipt later does not create another cash inflow; unapplied money is never shown as settled debt.
+
+The diary shows original cash events, searchable client/vehicle/folio links, **Por asociar** and **Por aplicar** filters, daily movement cards and account balances only when confirmed. A shared expense appears in full once in the diary; each folio counts only its allocated share. Quote revisions, source allocations and applications are not additional cash events. Collection cards distinguish partial payments and delivered work with an open balance.
+
+New RPCs retain permission checks, a pinned search path, transactional audit and actor-scoped idempotency. Invalid allocations, duplicate destinations, stale cost versions and incompatible customers reject the entire operation. The guarded down migration refuses to discard used linkage records.
+
+### Edit a budget and select the diary context
+
+- **Presupuestos → Editar presupuesto** is visible in each list row and at the top of the detail view. Add, change or remove lines, enter the reason and save. Editing starts from the latest complete revision, even when an older revision is being viewed; its parent remains fixed while editing so a concurrent revision is rejected rather than silently losing scope.
+- Saving creates another **draft version of the same workshop folio**, not a second work order. Earlier versions, expenses, charges and receipt applications remain linked to that operation. A revision is not a cash event or automatic debt; approval and differential charge issuance are still explicit.
+- **Libro diario → Folio de taller o contrato de alquiler** groups workshop folios separately from rental contracts/reservations. Selecting one filters its original movements and preselects that operation when opening **Registrar gasto** or **Registrar cobro**. **Todo el diario** keeps general capture available; select the destination inside the form instead.
+- Rentals show their real `ALQ` folio, vehicle, customer and start date; drafts are labeled as reservations, not signed contracts. Empty lists explain that no rental has been registered. A contract's money belongs to its rental operation, not to a particular PDF version. Internal maintenance accepts costs/expenses, not customer receipts.
+
+The diary retains its selected operation, focused movement and date range in its URL, including after a browser reload. Case, rental, collection and budget reads follow the existing shared refresh on focus, reconnection and the 15-second check. A late response cannot replace a newer case/collection/quote read. A server refresh updates facts without reinitializing the open budget editor; its unsaved lines and original parent remain unchanged, so a conflicting revision requires explicit review rather than a silent rebase.
+
+### Distinct financial facts
 
 | Fact | Meaning |
 | --- | --- |
@@ -77,6 +101,16 @@ New vehicle registration also accepts unknown odometer, color and rental rate; i
 Grouped documents have one external reference and explicit operation lines. GPS deductions need a reason and owner authorization. Payments, refunds and credits must specify line amounts; the system never distributes a header equally or repeats it per car. Vehicle contribution and commissions use those scoped allocations.
 
 The diary computes an account balance only with a confirmed opening at/before the requested start and no unresolved refund accounts. Historical refunds lacking a confirmed outgoing account remain unassigned. A displayed movement total is not a certified complete bank balance. Labor valuation, depreciation, guarantees and overhead policies are not invented.
+
+### Read an operation card
+
+1. **Presupuesto** is the latest proposed scope, not money received. A newer draft does not erase the prior approved scope that is still billable.
+2. **Costos del trabajo** are incurred costs; **Pagado en caja** is the separate cash view. Do not add the two together. Rental cards show their actual paid expenses. Internal maintenance is not a customer sale.
+3. **Cargos emitidos → Abonos aplicados → Por cobrar** use only that operation's document amounts and applications, not every receipt belonging to its customer.
+
+The links connect budget, operation, collections and diary. A filtered diary still shows complete original receipts/refunds, which may cover more than one operation; it hides global account totals rather than presenting them as scoped totals. Applications are not another diary inflow.
+
+The customer quote PDF uses AJ branding, frozen customer/vehicle details, quantity/unit-price/amount columns, repeated page headers and numbered footers. The actual 27-line quote fits in two pages, including the total. Internal costs, margins and unposted historical advance/balance controls remain outside the customer PDF.
 
 ## Actual workbook review
 
@@ -107,7 +141,10 @@ node scripts/verify-real-api.mjs
 npm run typecheck
 npm run build
 .venv\Scripts\python.exe -B tests/browser/usability_acceptance.py
+.venv\Scripts\python.exe -B tests/browser/redesign_acceptance.py
+.venv\Scripts\python.exe -B tests/browser/connected_money_acceptance.py
 .venv\Scripts\python.exe -B tests/browser/login_acceptance.py
+.venv\Scripts\python.exe -B tests/browser/session_recovery_acceptance.py
 ```
 
 Before the workspace simplification, the expansion passed **104 unit/SQL tests** and **six local HTTP/Auth/RLS suites** through migration `20261030001000`. SQL/unit coverage includes `vehicle-cases-sql`, `fleet-periods-sql`, `grouped-billing-sql`, `cash-diary-sql`, `rental-case-sql`, `source-review-sql`, `source-workbooks`, `renamed-checklist-sql`, `internal-estimates-sql` and `command-replay-permissions` tests. Actual PostgreSQL HTTP coverage is in `tests/local/cases.test.ts` and `tests/local/grouped-cases.test.ts`, alongside all previous local suites. The expanded role-browser test denies new case/original-file routes to technicians.
@@ -124,7 +161,7 @@ The pre-simplification build generated **22 static pages**, including `/vehiculo
 
 The current UI gate is `tests/browser/usability_acceptance.py`: eight navigation entries, one four-filter fleet bar, source-backed names, readable numeric folios, customer/fleet pagination, real 2,190 quote detail, material/labor **2 × 45 + 45 − 5 = 130**, original sections and navigation at **320/390/768/1440 px**. It checks both page and internal-container overflow, not just the document width, and asserts that no business-mutating RPC was called. Screenshots use the private `test-results/real-ui-` prefix.
 
-Current real-data iteration results (superseding the previous 113-test UI baseline):
+Previous real-data iteration results (before the November 1 card/calendar/PDF redesign):
 
 | Gate | Verified result |
 | --- | --- |
@@ -135,13 +172,53 @@ Current real-data iteration results (superseding the previous 113-test UI baseli
 | TypeScript / production build | Passed; **22 static pages** generated. |
 | Real HTTP/Auth / originals | `verify-real-api.mjs` passed authenticated endpoint validation, anonymous denial and byte-identical download of all four originals, with unchanged business counts. |
 
+### November 1 redesign verification
+
+- **130/130 unit/SQL tests passed**, including the connected operation-card/diary example: a 2,190 approved charge, one 120 purchase/payment, one 750 receipt/application, 1,440 outstanding and 630 net cash. Replay and rejected overpayment never leave a second receipt.
+- TypeScript and the production build passed; all **22 static pages** were generated.
+- Read-only live-data acceptance passed at **320/390/768/1440 px**, including all eight modules, the four fleet filters, collection breakdown/expense form, monthly calendar and all eight workshop-case sections at 320 px.
+- Browser-only simulations passed date-range selection, month navigation, draft/returned states, expanded blocked events, connected collection actions, the 2 MB photo limit and photo propagation to case/budget/collection views. These simulations do not create database fixtures.
+- The real 27-line customer PDF was rendered and visually inspected: two pages, complete line items and totals, with no internal costs or historical payment controls.
+- Final real API/Auth verification passed, including byte-identical downloads of all four originals. The PostgreSQL rollback rehearsal preserved business counts/hashes, and all seven session-recovery checks passed again after the build.
+
+### November 2 connected-money verification
+
+- **141/141 unit/SQL tests passed** with `node --import tsx --test --test-concurrency=1 tests/*.test.ts tests/review/*.test.ts`. TypeScript and the **22-page** production build passed.
+- The new browser-only journey passed at **320/390/768/1440 px**, without page or internal horizontal overflow: split an existing 180 expense as 75/100/5, capture another 20 from the folio, receive a linked 200 advance, issue a 500 charge, apply 100 from the existing receipt, and incorporate a source cost into a complete 590 draft revision. These amounts are temporary simulations, not real business movements. Financial-table snapshots were unchanged.
+- Native PostgreSQL migration/rollback/reapply rehearsal passed. Applying the extension preserved hashes of existing business records after a verified private backup. Evidence is in `test-results/connected-money-migration-1793648691816.json`; responsive screenshots use the `connected-diary-` prefix.
+- The post-recovery real API run passed Auth, existing quote/registry endpoints, all **four connected-money endpoints**, expense-inbox access, anonymous denial and four byte-identical originals (`test-results/real-api-verification-1793652446781.json`), without business writes.
+- **The environment blocker is resolved.** Docker logs recorded disk-full errors before the API/Auth freeze. A normal Desktop restart timed out; the supported forced Desktop stop followed by start recovered the existing containers without deleting volumes, resetting data or reimporting. Shared containers resumed automatically. All AJ services are running; DB/Auth/Kong health checks pass.
+- Updated general usability and populated redesign acceptance passed sequentially at **320/390/768/1440 px**, including eight modules, original facts, calendar, connected collections and photo propagation. Login and all **seven session-recovery scenarios** passed. The connected-money browser journey also passed again after recovery.
+- Final integrity comparison found **all 59 existing public-table hashes unchanged** from the migration evidence, with zero receipt contexts and no real financial postings (`test-results/recovery-final-integrity-1793652738166.json`).
+
+The previously pending local verification gates are closed. C: still has approximately 7 GB free; maintain disk headroom to avoid another Docker outage. This work does not redefine commercial delivery/credit policy or implement promises to pay or individual customer statements.
+
+### Budget-edit and diary-context follow-up
+
+- The full isolated suite passed **142/142** tests. The final rental-label/Salvador-date boundary refinement additionally passed its **11/11** targeted checks. TypeScript and the **22-page** production build passed.
+- Read-only usability passed again at all four widths, including opening **Editar presupuesto** on the real 27-line, 2,190 draft, retaining its complete scope and identity, adding an unsaved 20 line to preview 2,210, and cancelling without a business write.
+- The connected browser journey passed visible editing from the list/header, editing the latest complete scope from a historical detail view, grouped workshop/rental selectors, automatic capture preselection and the internal-maintenance receipt guard. Populated calendar, collection and photo regression also passed.
+- The real API/originals check passed again (`test-results/real-api-verification-1793654563384.json`). Final comparison found all 59 public-table hashes unchanged (`test-results/quote-diary-clarity-integrity-1793654649600.json`); no migration, real rental, budget revision or financial fixture was persisted by these checks.
+- Private screenshots use `budget-edit-action-`, `diary-rental-selector-` and `real-ui-quote-edit-` prefixes. Source backups are under `test-results/before-quote-diary-clarity-1793653432289/` with `.bak` extensions.
+
+### Cross-screen refresh follow-up
+
+- New browser regressions reproduced diary selection loss on reload and a workshop case remaining at a simulated 590 after an external draft became 640. Draft quote creation does not increment the work-order version; a version/count-only refresh key was insufficient.
+- The expanded connected journey now passes operation/date persistence at four widths, focus-driven case/collection/budget/rental updates, an older delayed response arriving last, preservation of an unsaved 695 edit after a simulated external 740 revision, and a stale-save conflict without draft loss or automatic rebasing. All examples remain browser-only, not actual finance.
+- Updated general usability, populated redesign and all seven session-recovery cases passed sequentially. The **17/17** targeted connected-money/operation-finance tests, TypeScript and **22-page** build passed. The earlier full-suite result remains 142/142; this refresh-only follow-up used targeted SQL coverage and the expanded browser regressions.
+- Final API/original verification passed (`test-results/real-api-verification-1793657043080.json`), and all 59 existing table hashes remained unchanged (`test-results/connected-refresh-integrity-1793657051954.json`). No schema migration, business fixture, reset or reimport was required. Prior source/test copies are under `test-results/before-connected-refresh-1793656072827/`.
+
 Do not run legacy fixture-producing HTTP, role or browser journeys against this clean workspace. Their selectors and retained data are not acceptance of the new UI. Use isolated SQL tests, read-only browser acceptance and the rollback-only real-database rehearsal. Run heavy PGlite suites separately from browser sign-in on this busy machine: overlapping workloads produced a local Auth HTTP 504 `request_timeout`, while a subsequent direct sign-in succeeded.
 
 The real HTTP run caught a renamed PL/pgSQL function still qualifying a parameter with its previous name. Migration `20261030000700` replaces that qualifier with `$1`; the original business HTTP suite passes after the repair. This is why in-memory SQL tests are not the only gate.
 
 Migration `20261030000900` allows internal cost-only estimates without inventing a commercial price. Migration `20261030001000` rechecks current business-command permissions before returning an idempotent result, including after role revocation.
 
-Migrations through `20261031000400` are applied forward extensions. Quote workspace, verified details, merge-alias integrity and optional unknown vehicle registration have rollback files; migration dependency recovery is tested in isolated databases. **Do not run rollbacks or resets on this used workspace.** Database archives contain private data and must stay out of public assets/source control.
+Migrations through `20261102000100` are applied forward extensions. The fleet-availability migration permits an explicit availability decision independently of unknown mileage. Its recovery and dependent migration chains are tested in isolated databases. `scripts/confirm-fleet-availability.mjs` defaults to a rollback rehearsal; its authorized `--apply` path verifies a complete private archive before using versioned, audited per-vehicle RPCs. The November 1 application preserved all other vehicle facts, all 17 current customers, the four original files, the draft quote and the zero-finance state. The additional customer found since the previous 16-contact baseline was retained, not overwritten.
+
+`scripts/apply-connected-money.mjs` rehearses the connected-money migration and guarded rollback in real PostgreSQL, including transient split/advance/application cases reverted to a savepoint. Its `--apply` path verifies a private archive and before/after hashes of every existing public table. The November 2 application changed no business records. It does not import or repost the original workbooks.
+
+**Do not run rollbacks or resets on this used workspace.** Database archives contain private data and must stay out of public assets/source control.
 
 `node --import tsx scripts/stage-client-workbooks.ts` repeats original-file staging safely; it has no publication call. `node scripts/setup-local.mjs --restore-missing-local-owner` only restores an absent generated AJ local identity and never resets an existing password.
 

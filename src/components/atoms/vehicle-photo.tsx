@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {readVehicleFile} from '@/lib/supabase/cases';
 
-export function VehiclePhoto({fileId,plate}:{fileId?:string;plate:string}){
+export function VehiclePhoto({fileId,plate,variant='detail'}:{fileId?:string;plate:string;variant?:'card'|'thumbnail'|'detail'}){
   const [url,setUrl]=useState('');const [error,setError]=useState('');
   useEffect(()=>{let active=true;let objectUrl='';setUrl('');setError('');
     if(fileId)void readVehicleFile(fileId).then(file=>{
@@ -13,6 +13,6 @@ export function VehiclePhoto({fileId,plate}:{fileId?:string;plate:string}){
     return()=>{active=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};
   },[fileId]);
   return url?<img src={url} alt={`Fotografía de ${plate}`} width={480} height={260}
-    loading="lazy" style={{width:'100%',height:220,objectFit:'contain'}}/>:
+    loading="lazy" className={`vehicle-photo vehicle-photo-${variant}`}/>:
     <p className="p-6 text-muted-foreground" role="status">{error||'Sin fotografía real registrada'}</p>;
 }

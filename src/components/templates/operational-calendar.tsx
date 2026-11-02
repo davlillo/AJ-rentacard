@@ -18,6 +18,7 @@ import {vehicleHref,orderHref,rentalHref} from '@/lib/supabase/cases';
 import {AdaptiveTable} from '@/components/organisms/adaptive-table';
 import {Pagination,usePagination} from '@/components/organisms/pagination';
 import {folio} from '@/controladores/folios';
+import {RentalMonthCalendar} from '@/components/organisms/rental-month-calendar';
 
 type CalendarView='calendar'|'reservations'|'blocks';
 export function CalendarScreen({view='calendar'}:{view?:CalendarView}){const {source}=useBusiness();return source==='supabase'?<Suspense fallback={<p>Cargando flota…</p>}><CalendarWorkspace view={view}/></Suspense>:<CalendarioScreen/>;}
@@ -26,7 +27,6 @@ function CalendarWorkspace({view}:{view:CalendarView}){
   const search=useSearchParams();
   const [commitments,setCommitments]=useState<Commitment[]>([]);const [evidence,setEvidence]=useState<ReservationEvidence[]>([]);
   const [paymentStatuses,setPaymentStatuses]=useState<Record<string,string>>({});
-  const [day,setDay]=useState(()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/El_Salvador'}));
   const [query,setQuery]=useState('');const [category,setCategory]=useState('Todas');const [create,setCreate]=useState(false);
   const [commercialLine,setCommercialLine]=useState('Todas');
   const [openEnded,setOpenEnded]=useState(false);
@@ -35,12 +35,10 @@ function CalendarWorkspace({view}:{view:CalendarView}){
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [alternatives,setAlternatives]=useState<{id:string;plate:string}[]>([]);
   const sending=useRef(false);const attempt=useRef<{body:string;key:string}|null>(null);
   const booking=reservations.find(booking=>booking.id===selected);
-  const start=new Date(day+'T00:00:00-06:00').getTime();const end=start+7*86400000;
   const vehicles=data.vehicles.filter(vehicle=>vehicle.inRentalFleet&&(category==='Todas'||vehicle.category===category)&&
     (commercialLine==='Todas'||(vehicle.commercialLine||'Sin línea')===commercialLine)&&
     `${vehicle.plate} ${vehicle.brand} ${vehicle.model}`.toLowerCase().includes(query.toLowerCase()))
      .sort((a,b)=>(a.commercialLine||'Sin línea').localeCompare(b.commercialLine||'Sin línea')||a.plate.localeCompare(b.plate));
-  const page=usePagination(vehicles,query+category+commercialLine);
   const bookingPage=usePagination(reservations.filter(r=>vehicles.some(v=>v.id===r.vehicle_id)),query+category+commercialLine);
   async function reload(){const loaded=await loadCalendar();setReservations(loaded.reservations);setCommitments(loaded.commitments);setEvidence(loaded.evidence);setPaymentStatuses(loaded.paymentStatuses);}
   useEffect(()=>{void reload().catch(error=>setError(error.message));},[]);
@@ -55,10 +53,10 @@ function CalendarWorkspace({view}:{view:CalendarView}){
   return <>
     <PageHeading title="Calendario" description="Reservas y disponibilidad de tus vehículos."
       actions={<Button disabled={!can('orders.write')} onClick={()=>{setError('');setCreate(true);}}>Nueva reserva</Button>}/>
-    <nav className="module-tabs" aria-label="Vistas del calendario">{([['calendar','Agenda'],['reservations','Reservas'],['blocks','Bloqueos'],...(can('expenses.read')?[['excel','Archivo original']]:[])] as [CalendarView|'excel',string][]).map(([value,label])=>
+    <nav className="module-tabs" aria-label="Vistas del calendario">{([['calendar','Calendario'],['reservations','Reservas'],['blocks','Bloqueos'],...(can('expenses.read')?[['excel','Archivo original']]:[])] as [CalendarView|'excel',string][]).map(([value,label])=>
       <button key={value} className={section===value?'active':''} aria-pressed={section===value} onClick={()=>setSection(value)}>{label}</button>)}</nav>
     {section==='excel'?<WorkbookPreview format="fleet"/>:<>
-    <div className={styles.toolbar}><label className="form-field"><span>Semana desde</span><input aria-label="Semana desde" type="date" value={day} onChange={event=>setDay(event.target.value)}/></label>
+    <div className={styles.toolbar}>
       <label className="form-field"><span>Buscar placa o modelo</span><input value={query} onChange={event=>setQuery(event.target.value)}/></label>
       <label className="form-field"><span>Categoría</span><select aria-label="Categoría" value={category} onChange={event=>setCategory(event.target.value)}>
          <option>Todas</option>{[...new Set(data.vehicles.map(vehicle=>vehicle.category))].map(category=><option key={category}>{category}</option>)}</select></label>
@@ -66,18 +64,7 @@ function CalendarWorkspace({view}:{view:CalendarView}){
         <option>Todas</option>{[...new Set(data.vehicles.filter(v=>v.inRentalFleet).map(v=>v.commercialLine||'Sin línea'))].sort().map(line=><option key={line}>{line}</option>)}</select></label>
       <Button variant="outline" disabled={busy} onClick={()=>{void run(reload);}}>Actualizar agenda</Button>
     </div>
-    {section==='calendar'&&<section className="panel"><div className={styles.dates} aria-label="Días de la semana">{Array.from({length:7},(_,i)=><div key={i}><strong>{new Date(start+i*86400000).toLocaleDateString('es-SV',{weekday:'short',timeZone:'America/El_Salvador'})}</strong><span>{new Date(start+i*86400000).toLocaleDateString('es-SV',{day:'2-digit',month:'short',timeZone:'America/El_Salvador'})}</span></div>)}</div>
-      {page.items.map(vehicle=>{const entries=commitments.filter(c=>c.vehicle_id===vehicle.id&&c.active&&Date.parse(c.starts_at)<end&&
-        (c.ends_at==='infinity'||Date.parse(c.ends_at)>start));return <div className={styles.row} key={vehicle.id}><div className={styles.identity}><Link href={vehicleHref(vehicle.id)}><strong>{vehicle.plate}</strong>
-        <small>{vehicle.brand} {vehicle.model}</small></Link><small>{vehicle.status}</small></div>
-        <div className={styles.track}>{!entries.length&&<p className={styles.noEntries}>Sin compromisos registrados en esta semana{vehicle.status==='Por confirmar'?' · disponibilidad sin confirmar':''}.</p>}{entries.map(c=>{
-          const reservation=reservations.find(r=>r.id===c.reservation_id);
-          const label=c.kind==='Reserva'?`${reservation?.customer_snapshot.name??'Reserva'} · ${money(reservation?.total??0)}`:c.kind;
-          return <button key={c.id} className={`${styles.bar} ${c.kind==='Taller'?styles.workshop:c.kind==='Limpieza'?styles.cleaning:''}`}
-            title={`${label} / ${c.starts_at} → ${c.ends_at}`} onClick={()=>c.kind==='Reserva'&&c.reservation_id?show(c.reservation_id):setBlock(c)}>
-            <strong>{label}</strong><span>{new Date(c.starts_at).toLocaleDateString('es-SV',{timeZone:'America/El_Salvador'})} → {c.ends_at==='infinity'?'Sin fin previsto':new Date(c.ends_at).toLocaleDateString('es-SV',{timeZone:'America/El_Salvador'})}</span><small>{c.kind==='Reserva'?`Cobro: ${paymentStatuses[c.reservation_id??'']??'Por consultar'}`:c.reason}</small></button>;
-        })}</div></div>;})}<Pagination {...page}/>
-      <div className={styles.legend}>Las fechas sin año del archivo original están disponibles para consulta, no como reservas vigentes.</div></section>}
+    {section==='calendar'&&<RentalMonthCalendar vehicles={vehicles} reservations={reservations} commitments={commitments} onOpen={show} onBlock={setBlock}/>}
     {section==='blocks'&&<details className="panel p-5 mt-5"><summary>Programar bloqueo de taller, limpieza, préstamo o uso interno</summary><form className="operation-form" onSubmit={event=>{
       event.preventDefault();const f=new FormData(event.currentTarget);void run(async()=>{await mutate('block',{vehicleId:String(f.get('vehicleId')),kind:String(f.get('kind')),
         startsAt:salvadorDateTime(String(f.get('startsAt'))),endsAt:salvadorDateTime(String(f.get('endsAt'))),reason:String(f.get('reason'))});toast('Bloqueo guardado.');});

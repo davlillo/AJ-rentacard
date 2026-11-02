@@ -53,9 +53,9 @@ export function OperationalDialog() {
           name = 'create_vehicle';
           payload = {plate: text('plate'), vin: text('vin'), brand: text('brand'), model: text('model'),
             year: Number(text('year')), category: text('category'), color: text('color'),
-            daily: Number(text('daily')), km: Number(text('km')), ownership,initialStatus:'Por confirmar',
+            daily: Number(text('daily')), km: Number(text('km')), ownership,initialStatus:fields.has('inRentalFleet')?'Disponible':'Por confirmar',
             unverifiedFields:[...['plate','color','daily','km'].filter(field=>!text(field)),
-              ...(ownership==='Por confirmar'?['ownership']:[]),'status'],
+              ...(ownership==='Por confirmar'?['ownership']:[]),...(fields.has('inRentalFleet')?[]:['status'])],
             ownerCustomerId: ownership === 'Cliente' ? text('ownerCustomerId') : null,
             inRentalFleet:fields.has('inRentalFleet'),registeredHolder:text('registeredHolder'),commercialLine:text('commercialLine')};
         } else if (modal.kind === 'orden') {
@@ -111,7 +111,7 @@ export function OperationalDialog() {
               <option>Pickup</option><option>Compacto</option></select></Field>
             <Field label="Color (opcional)"><input name="color"/></Field>
             <Field label="Tarifa diaria de renta (opcional)"><input name="daily" type="number" min={0} step="0.01"/></Field>
-            <p className="field-hint">Kilometraje, tarifa y estado quedan pendientes hasta verificarlos. Registrar el vehículo no significa recibirlo ni declararlo disponible.</p>
+            <p className="field-hint">Kilometraje y tarifa pueden completarse después. Un vehículo nuevo incluido en flota inicia disponible; su ingreso o salida se registra por separado.</p>
             <Field label="Relación"><select value={ownership} onChange={event => setOwnership(event.target.value)}>
               <option>Propio</option><option>Cliente</option><option>Por confirmar</option></select></Field>
             {ownership === 'Cliente' && customerSelect('ownerCustomerId')}

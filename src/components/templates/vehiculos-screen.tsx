@@ -8,7 +8,7 @@ import {Empty} from '@/components/organisms/data-table';
 import {Button} from '@/components/ui/button';
 import {Badge,statusTone} from '@/components/atoms/badge';
 import {VehicleArt} from '@/components/atoms/vehicle-art';
-import {VehiclePhoto} from '@/components/atoms/vehicle-photo';
+import {VehicleImage} from '@/components/organisms/vehicle-image';
 import {VehicleDetail} from '@/components/organisms/vehicle-detail';
 import {vehicleHref} from '@/lib/supabase/cases';
 import {money} from '@/controladores/finanzas';
@@ -38,10 +38,10 @@ export function VehiculosScreen(){
     </div><div className="search-field"><CarFront size={16}/><input aria-label="Buscar vehículo"
       placeholder="Buscar placa, modelo o línea..." value={query} onChange={e=>setQuery(e.target.value)}/></div></div>
     <div className="vehicle-grid">{page.items.map(v=><article className="vehicle-card" key={v.id}>
+      {source==='supabase'?<VehicleImage vehicleId={v.id} plate={v.plate} fileId={v.primaryPhotoId} editable/>:
+        <div className="vehicle-image"><VehicleArt color={v.color} category={v.category} model={`${v.brand} ${v.model}`}/></div>}
       <div className="vehicle-card-top"><span className="vehicle-category">{v.commercialLine||v.category}</span>
         <Badge tone={states.get(v.id)==='Reservado'?'amber':statusTone(v.status)}>{states.get(v.id)}</Badge></div>
-      {(source==='demo'||v.primaryPhotoId)&&<div className="vehicle-image">{source==='supabase'?<VehiclePhoto fileId={v.primaryPhotoId} plate={v.plate}/>:
-        <VehicleArt color={v.color} category={v.category} model={`${v.brand} ${v.model}`}/>}</div>}
       <div className="vehicle-card-info"><div><h2>{v.brand} {v.model}</h2><span>{v.year}{v.color?' · '+v.color:''}</span></div>
         <span className="plate">{v.plate||'Sin placa'}</span></div>
       <div className="vehicle-facts"><span><Gauge size={14}/>{v.unverified_fields?.includes('km')?'Kilometraje pendiente':`${v.km.toLocaleString()} km`}</span>

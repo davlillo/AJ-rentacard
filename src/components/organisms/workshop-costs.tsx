@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import Link from 'next/link';
 import {Button} from '@/components/ui/button';
 import {money} from '@/controladores/finanzas';
 import {useBusiness} from '@/hooks/use-business';
@@ -7,15 +8,20 @@ import {costCommand,loadCosts,loadPurchasePayments,payDirectPurchase,type Worksh
 import {loadEstimates,type QuoteVersion} from '@/lib/supabase/estimates';
 import {AdaptiveTable} from './adaptive-table';
 import {folio} from '@/controladores/folios';
+import {diaryHref} from '@/controladores/linked-money';
+import {ExpenseInbox} from './linked-expense';
 
 export function WorkshopCosts({orderId,onChange}:{orderId:string;onChange?:()=>Promise<void>}){
-  const {data,toast,can,refresh}=useBusiness();const [costs,setCosts]=useState<WorkshopCost[]>([]);
+  const {data,toast,can,refresh,open,modal}=useBusiness();const [costs,setCosts]=useState<WorkshopCost[]>([]);
   const [payments,setPayments]=useState<DirectPurchasePayment[]>([]);
   const afterDelivery=data.orders.find(order=>order.id===orderId)?.status==='Entregado';
   const [quotes,setQuotes]=useState<QuoteVersion[]>([]);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   const attempt=useRef<{body:string;key:string}|null>(null);const sending=useRef(false);
-  async function reload(){setCosts(await loadCosts(orderId));setPayments(await loadPurchasePayments(orderId));if(can('expenses.write'))setQuotes((await loadEstimates()).quotes.filter(quote=>quote.order_id===orderId&&quote.status==='Aprobado'));}
-  useEffect(()=>{void reload().catch(error=>setError(error.message));},[orderId]);
+  const loadRevision=useRef(0);
+  async function reload(){const revision=++loadRevision.current;const [nextCosts,nextPayments,nextQuotes]=await Promise.all([
+    loadCosts(orderId),loadPurchasePayments(orderId),can('expenses.write')?loadEstimates().then(result=>result.quotes.filter(quote=>quote.order_id===orderId&&quote.status==='Aprobado')):Promise.resolve([])]);
+    if(revision===loadRevision.current){setCosts(nextCosts);setPayments(nextPayments);setQuotes(nextQuotes);}}
+  useEffect(()=>{void reload().catch(error=>setError(error.message));return()=>{loadRevision.current++;};},[orderId,modal.kind,data.movements.length]);
   async function submit(command:'purchase'|'classify',payload:Record<string,unknown>,form?:HTMLFormElement){
     if(sending.current)return;sending.current=true;setBusy(true);setError('');
     const body=JSON.stringify({command,payload});if(attempt.current?.body!==body)attempt.current={body,key:crypto.randomUUID()};
@@ -34,6 +40,10 @@ export function WorkshopCosts({orderId,onChange}:{orderId:string;onChange?:()=>P
   return <section aria-label={`Costos de ${orderId}`}>
     <p className="inline-note">Compra directa registra costo real, no pago de caja ni cargo al cliente. Los gastos del diario se vinculan una sola vez.
       Cada costo inicia pendiente de disposición comercial.</p>
+    <div className="case-money-links"><Button variant="outline" disabled={!can('expenses.write')} onClick={()=>open('gasto',orderId)}>Registrar gasto de este trabajo</Button>
+      <Link href={`/presupuestos/?trabajo=${encodeURIComponent(orderId)}`}>Revisar presupuesto y adicionales →</Link>
+      <Link href={diaryHref(orderId)}>Ver movimientos originales en diario →</Link></div>
+    {can('expenses.write')&&<ExpenseInbox orderId={orderId} onChange={async()=>{await reload();await onChange?.();}}/>}
     {afterDelivery&&<p className="inline-note mt-4">Orden entregada: solo gerencia puede registrar ajustes con motivo. El acta original no cambia.</p>}
     {can('expenses.write')&&<details className="mt-4"><summary>Registrar compra directa inesperada</summary>
       <form className="operation-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;const f=new FormData(form);
@@ -51,8 +61,9 @@ export function WorkshopCosts({orderId,onChange}:{orderId:string;onChange?:()=>P
     <div className="table-scroll mt-4"><AdaptiveTable><thead><tr><th>Costo y origen</th><th>Importe</th><th>Disposición comercial</th></tr></thead>
       <tbody>{costs.map(cost=>{const paid=payments.filter(payment=>payment.direct_purchase_cost_id===cost.id).reduce((sum,payment)=>sum+Number(payment.amount),0);
         const pending=Math.round((Number(cost.amount)-paid)*100)/100;
-        return <tr key={cost.id}><td><strong>{cost.description}</strong><small>{cost.kind} · {cost.expense_id??`${cost.supplier} / ${cost.source_reference}`}</small>
-        <small>{cost.occurred_at}</small></td><td>{money(cost.amount)}</td><td><strong>{cost.disposition}</strong><small>{cost.reason}</small>
+          return <tr key={cost.id}><td><strong>{cost.description}</strong><small>{cost.kind} · {cost.expense_id??cost.linked_expense_id??`${cost.supplier} / ${cost.source_reference}`}</small>
+          <small>{cost.occurred_at}</small>{(cost.expense_id||cost.linked_expense_id)&&<Link className="text-link" href={diaryHref(orderId,'expense:'+(cost.expense_id??cost.linked_expense_id),cost.occurred_at)}>Ver gasto original →</Link>}</td>
+          <td>{money(cost.amount)}{cost.linked_expense_id&&<small>Importe asignado a este trabajo</small>}</td><td><strong>{cost.disposition==='Pendiente'?'Por revisar si está incluido o es adicional':cost.disposition}</strong><small>{cost.reason}</small>
         {can('expenses.write')&&<details><summary>Clasificar costo</summary><form className="operation-form" onSubmit={event=>{
           event.preventDefault();const f=new FormData(event.currentTarget);void submit('classify',{costId:cost.id,expectedVersion:cost.version,
             disposition:String(f.get('disposition')),estimateId:f.get('estimateId')||null,reason:String(f.get('reason'))});

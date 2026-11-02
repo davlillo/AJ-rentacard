@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
-import {useCallback,useEffect,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {useBusiness} from '@/hooks/use-business';
 import {useCaseAction} from '@/hooks/use-case-action';
 import {PageHeading} from '@/components/molecules/page-heading';
@@ -18,12 +18,17 @@ import {folio} from '@/controladores/folios';
 
 export function RentalCaseScreen(){const id=useSearchParams().get('id')??'';return <RentalContent key={id} id={id}/>;}
 function RentalContent({id}:{id:string}){
-  const {can,refresh,open,modal}=useBusiness();const [file,setFile]=useState<CaseFile|null>(null);
+  const {data,can,refresh,open,modal}=useBusiness();const [file,setFile]=useState<CaseFile|null>(null);
   const [loadError,setLoadError]=useState('');const [tab,setTab]=useState('Resumen');
-  const reload=useCallback(async()=>{const result=await loadRentalCase(id);setFile(result);setLoadError('');await refresh();},[id,refresh]);
+  const readRevision=useRef(0);
+  const readCase=useCallback(async()=>{const revision=++readRevision.current;
+    try{const result=await loadRentalCase(id);if(revision===readRevision.current){setFile(result);setLoadError('');}}
+    catch(error){if(revision===readRevision.current)throw error;}
+  },[id]);
+  const reload=useCallback(async()=>{await readCase();await refresh();},[readCase,refresh]);
   const {busy,error,execute}=useCaseAction(reload);
-  useEffect(()=>{let active=true;if(id)void loadRentalCase(id).then(result=>{if(active){setFile(result);setLoadError('');}})
-    .catch(error=>{if(active)setLoadError(error.message);});return()=>{active=false;};},[id,modal.kind]);
+  useEffect(()=>{let active=true;if(id)void readCase().catch(error=>{if(active)setLoadError(error.message);});
+    return()=>{active=false;readRevision.current++;};},[id,readCase,modal.kind,data]);
   function mutate(command:ReservationCommand,payload:Record<string,unknown>){return execute(`reservation.${command}`,payload,key=>reservationCommand(command,payload,key));}
   if(!id)return <p role="alert" className="form-error">Falta el identificador del alquiler.</p>;
   if(!file)return <p role={loadError?'alert':'status'}>{loadError||'Cargando pliego del alquiler…'}</p>;

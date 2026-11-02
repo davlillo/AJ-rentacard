@@ -35,7 +35,9 @@ def main() -> None:
         mutations: list[str] = []
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('request', lambda request: mutations.append(request.url) if re.search(
-            r'/rpc/(execute_|record_|issue_|save_|collect_|pay_|stage_|publish_|review_)', request.url) else None)
+            r'/rpc/(execute_|record_|issue_|save_|collect_|pay_|stage_|publish_|review_|link_)', request.url) else None)
+        page.route(re.compile(r'.*/rest/v1/rpc/(execute_|record_|issue_|save_|collect_|pay_|stage_|publish_|review_|link_).*'),
+                   lambda route: route.fulfill(status=403, json={'message': 'Read-only acceptance blocks business writes'}))
         try:
             page.goto('http://127.0.0.1:3030/inicio', wait_until='networkidle')
             page.get_by_label('Correo electrónico', exact=True).fill(config['AJ_LOCAL_OWNER_EMAIL'])
@@ -60,9 +62,10 @@ def main() -> None:
                     assert_fits(page, f'{width}px {route}')
                     page.screenshot(path=f'test-results/real-ui-{route}-{width}.png', full_page=True)
                     if route == 'clientes':
+                        total = int(page.get_by_role('navigation', name='Paginación', exact=True).locator('span').first.inner_text().split(' de ')[-1])
                         expect(page.locator('tbody tr')).to_have_count(10)
                         page.get_by_role('button', name='Siguiente', exact=True).click()
-                        expect(page.locator('tbody tr')).to_have_count(6)
+                        expect(page.locator('tbody tr')).to_have_count(min(10, total - 10))
                         page.get_by_role('button', name='Anterior', exact=True).click()
                         page.get_by_placeholder('Buscar nombre, teléfono o documento…').fill('Rafael')
                         expect(page.locator('tbody').first).to_contain_text('Rafael Vargas')
@@ -76,8 +79,10 @@ def main() -> None:
                         tabs = page.get_by_role('tablist', name='Estado de la flota', exact=True)
                         expect(tabs.get_by_role('tab')).to_have_count(4)
                         expect(page.locator('.vehicle-card')).to_have_count(12)
-                        expect(page.locator('.vehicle-no-photo')).to_have_count(0)
-                        expect(page.locator('.vehicle-card').first).to_contain_text('Por confirmar')
+                        expect(page.locator('.vehicle-media-card')).to_have_count(12)
+                        expect(page.locator('.vehicle-card .badge')).to_have_text(['Disponible'] * 12)
+                        expect(tabs.get_by_role('tab', name=re.compile(r'^Disponibles'))).to_contain_text('27')
+                        expect(page.locator('.vehicle-card').first.get_by_role('button', name=re.compile(r'^Subir foto'))).to_be_visible()
                         page.get_by_role('button', name='Siguiente', exact=True).click()
                         assert_fits(page, f'{width}px fleet second page')
                         page.get_by_role('button', name='Agregar vehículo', exact=True).click()
@@ -96,10 +101,23 @@ def main() -> None:
                         expect(page.locator('tbody')).to_contain_text('Rafael Vargas')
                         expect(page.locator('tbody')).to_contain_text('$2,190.00')
                         page.get_by_role('button', name='Ver detalle', exact=True).click()
-                        expect(page.locator('.document-folio')).to_have_text(re.compile(r'^PRE-\d{5,}$'))
+                        expect(page.locator('.budget-document-brand strong')).to_have_text(re.compile(r'^PRE-\d{5,}$'))
                         expect(page.locator('.source-reconciliation')).to_contain_text('$1,440.00')
                         assert_fits(page, f'{width}px real quote detail')
                         page.screenshot(path=f'test-results/real-ui-quote-detail-{width}.png', full_page=True)
+                        page.locator('.page-heading').get_by_role('button', name='Editar presupuesto', exact=True).click()
+                        expect(page.locator('.budget-line')).to_have_count(27)
+                        expect(page.get_by_label('Cliente del presupuesto', exact=True)).to_be_disabled()
+                        expect(page.get_by_label('Vehículo del presupuesto', exact=True)).to_be_disabled()
+                        expect(page.locator('.grand-total')).to_contain_text('$2,190.00')
+                        page.get_by_role('button', name='Agregar mano de obra', exact=True).click()
+                        page.get_by_label('Descripción 28', exact=True).fill('Read-only unsaved additional scope')
+                        page.get_by_label('Precio unitario 28', exact=True).fill('20')
+                        expect(page.locator('.grand-total')).to_contain_text('$2,210.00')
+                        assert_fits(page, f'{width}px edit real complete 27-line scope with one unsaved addition')
+                        page.evaluate('window.scrollTo(0, 0)')
+                        page.screenshot(path=f'test-results/real-ui-quote-edit-{width}.png')
+                        page.get_by_role('button', name='Cancelar', exact=True).click()
                         page.get_by_role('button', name='Nuevo presupuesto', exact=True).click()
                         page.get_by_label('Cliente del presupuesto', exact=True).select_option(label='Rafael Vargas')
                         page.get_by_label('Trabajo del presupuesto', exact=True).fill('Reparación delantera')
@@ -127,9 +145,22 @@ def main() -> None:
                         assert_fits(page, f'{width}px internal cost-only budget')
                         page.get_by_role('button', name='Cancelar', exact=True).click()
                     if route == 'calendario':
-                        for section in ['Reservas', 'Bloqueos', 'Agenda']:
+                        expect(page.get_by_role('gridcell')).to_have_count(42)
+                        for section in ['Reservas', 'Bloqueos', 'Calendario']:
                             page.get_by_role('button', name=section, exact=True).click()
                             assert_fits(page, f'{width}px calendar {section}')
+                    if route == 'cobros':
+                        expect(page.locator('.collection-card')).to_have_count(1)
+                        expect(page.locator('.collection-card')).to_contain_text('Rafael Vargas')
+                        expect(page.locator('.collection-card .amount-outstanding dd')).to_have_text('Sin cargo')
+                        expect(page.locator('.collection-card .amount-paid')).to_have_text('$0.00')
+                        page.get_by_text('Ver cargos, abonos y gastos', exact=True).click()
+                        expect(page.locator('.collection-breakdown')).to_contain_text('No hay abonos aplicados')
+                        assert_fits(page, f'{width}px collection breakdown')
+                        page.get_by_role('button', name='Registrar gasto', exact=True).click()
+                        expect(page.get_by_role('dialog')).to_be_visible()
+                        assert_fits(page, f'{width}px scoped expense form')
+                        page.get_by_role('button', name='Cancelar', exact=True).click()
                     if route in ['calendario', 'presupuestos', 'cobros', 'libro-diario']:
                         page.get_by_role('button', name='Archivo original', exact=True).click()
                         expect(page.get_by_role('region', name='Datos del archivo original', exact=True)).to_be_visible()
@@ -146,6 +177,8 @@ def main() -> None:
             page.get_by_role('button', name='Ver detalle', exact=True).click()
             page.get_by_role('link', name='Abrir expediente del trabajo →', exact=True).click()
             expect(page.locator('main h1')).to_contain_text('OT-')
+            page.get_by_role('button', name='Actualizar expediente', exact=True).click()
+            expect(page.get_by_text('Expediente actualizado.', exact=True)).to_be_visible()
             for section in ['Resumen', 'Recepción', 'Presupuestos', 'Costos', 'Cargos y abonos', 'Fotos y documentos', 'Tareas', 'Salida']:
                 page.get_by_role('button', name=section, exact=True).click()
                 page.wait_for_load_state('networkidle')
@@ -163,8 +196,11 @@ def main() -> None:
             assert not mutations, 'Read-only acceptance attempted a business mutation.'
             print('PASS: readable real folios, clear budget totals, pagination and navigation; no fixture records created.')
         except Exception as error:
-            page.screenshot(path='test-results/real-ui-failure.png', full_page=True,
-                            mask=[page.locator('#aj-login-email'), page.locator('#aj-login-password')])
+            try:
+                page.screenshot(path='test-results/real-ui-failure.png', full_page=True, timeout=5000,
+                                mask=[page.locator('#aj-login-email'), page.locator('#aj-login-password')])
+            except Exception as capture_error:
+                print('Failure screenshot unavailable: ' + type(capture_error).__name__)
             safe = str(error).replace(config['AJ_LOCAL_OWNER_PASSWORD'], '[REDACTED]')
             safe = safe.replace(config['AJ_LOCAL_OWNER_EMAIL'], '[LOCAL USER]')
             raise RuntimeError(safe) from None

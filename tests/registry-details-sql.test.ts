@@ -10,7 +10,7 @@ test('Known details can be completed with evidence, version checks and authoriza
       category:'SUV',color:'',daily:0,km:0,ownership:'Por confirmar',initialStatus:'Por confirmar',unverifiedFields:['plate','color','daily','km','ownership','status']});
     const fresh=(await db.query<{status:string;unverified_fields:string[]}>('select status,unverified_fields from public.vehicles where id=$1',[unknown.id])).rows[0];
     assert.equal(fresh.status,'Por confirmar');assert.ok(fresh.unverified_fields.includes('km'));assert.ok(fresh.unverified_fields.includes('daily'));
-    const car=await command<{id:string}>('execute_command','create_vehicle',{plate:'',brand:'Nissan',model:'Rogue',year:2018,category:'SUV',color:'',daily:'0',km:'0',ownership:'Por confirmar',inRentalFleet:true});
+    const car=await command<{id:string}>('execute_command','create_vehicle',{plate:'',brand:'Nissan',model:'Rogue',year:2018,category:'SUV',color:'',daily:'0',km:'0',ownership:'Por confirmar',inRentalFleet:false});
     await db.exec('reset role');await db.query("update public.vehicles set status='Por confirmar',unverified_fields=array['plate','color','km','daily','status'] where id=$1",[car.id]);await db.exec('set role authenticated');
     const vehicle=(await db.query<{version:number}>('select version from public.vehicles where id=$1',[car.id])).rows[0];
     const payload={id:car.id,expectedVersion:vehicle.version,status:'Disponible',reason:'Physical verification'};

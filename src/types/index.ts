@@ -8,7 +8,7 @@ export interface Item {id:string;name:string;sku:string;category:string;stock:nu
 export interface EstimateLine {description:string;quantity:number;cost:number;price:number;}
 export interface Estimate {id:string;orderId:string;customerId:string|null;lines:EstimateLine[];discount:number;status:'Borrador'|'Enviado'|'Aprobado';}
 export interface WorkshopTask {id:string;orderId:string;description:string;assignedTo:string;assigneeLabel:string;status:'Pendiente'|'En proceso'|'Finalizada';version:number;createdAt:string;}
-export interface ReservationHistory {id:string;vehicleId:string;customerId:string;start:string;end:string;status:string;rentalState:string;}
+export interface ReservationHistory {id:string;vehicleId:string;customerId:string;start:string;end:string;status:string;rentalState:string;folioNumber?:number;}
 export interface BusinessData {vehicles:Vehicle[];customers:Customer[];rentals:Rental[];orders:WorkOrder[];movements:Movement[];items:Item[];estimates:Estimate[];tasks?:WorkshopTask[];reservationHistory?:ReservationHistory[];}
 export type ModalKind = 'reserva'|'cliente'|'gasto'|'orden'|'presupuesto'|'pago'|'inventario'|'importar'|'tiempo'|'vehiculo'|null;
 export interface ModalState {kind:ModalKind;id?:string;}

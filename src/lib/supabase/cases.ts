@@ -16,12 +16,13 @@ export interface VehicleFile {
 }
 export interface CostAllocation {id:string;cost_id:string;estimate_id:string|null;line_index:number|null;description:string;amount:number;}
 export interface CaseDocument {id:string;description:string;amount:number;scope_amount:number;scope_balance:number;issued_on:string;due_on:string;grouped?:boolean;folio_number?:number;}
-export interface CaseExpense {id:string;date:string;concept:string;amount:number;account:string;support:string;direct_purchase_cost_id:string|null;}
+export interface CaseExpense {id:string;date:string;concept:string;amount:number;scope_amount?:number;shared?:boolean;account:string;support:string;direct_purchase_cost_id:string|null;}
 export interface CaseFile {
   vehicle:CaseVehicle;financialAccess:boolean;orders:CaseOrder[];reservations:Reservation[];commitments:Commitment[];
   inspections:{id:string;order_id:string;km:number;fuel:number;condition:string;accessories:string;created_at:string}[];
   files:VehicleFile[];quotes?:QuoteVersion[];costs?:WorkshopCost[];allocations?:CostAllocation[];
   expenses?:CaseExpense[];documents?:CaseDocument[];applications?:(PaymentApplication&{scope_amount:number})[];payments?:CustomerPayment[];
+  advances?:(CustomerPayment&{available_amount:number})[];
 }
 const messages:Record<string,string>={
   PERMISSION_DENIED:'No tiene permiso para esta acción.',VERSION_CONFLICT:'El registro cambió. Actualice antes de guardar.',
