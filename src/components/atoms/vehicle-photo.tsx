@@ -1,6 +1,8 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {CarFront} from 'lucide-react';
 import {readVehicleFile} from '@/lib/supabase/cases';
+import {isShowcase} from '@/lib/showcase';
 
 export function VehiclePhoto({fileId,plate,variant='detail'}:{fileId?:string;plate:string;variant?:'card'|'thumbnail'|'detail'}){
   const [url,setUrl]=useState('');const [error,setError]=useState('');
@@ -12,7 +14,9 @@ export function VehiclePhoto({fileId,plate,variant='detail'}:{fileId?:string;pla
     }).catch(()=>{if(active)setError('No se pudo cargar la foto.');});
     return()=>{active=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};
   },[fileId]);
-  return url?<img src={url} alt={`Fotografía de ${plate}`} width={480} height={260}
+  const status=error||(fileId?'Cargando imagen…':'Sin fotografía real registrada');
+  return url?<img src={url} alt={`${isShowcase?'Ilustración de referencia':'Fotografía'} de ${plate}`} width={480} height={260}
     loading="lazy" className={`vehicle-photo vehicle-photo-${variant}`}/>:
-    <p className="p-6 text-muted-foreground" role="status">{error||'Sin fotografía real registrada'}</p>;
+    variant==='thumbnail'?<span className="flex h-full min-w-0 items-center justify-center text-muted-foreground" role="status" aria-label={status}><CarFront size={22}/></span>:
+    <p className="p-4 break-words text-muted-foreground" role="status">{status}</p>;
 }

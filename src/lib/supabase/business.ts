@@ -2,7 +2,7 @@ import type {BusinessData, Customer, Vehicle, WorkOrder, Movement, WorkshopTask,
 import {createSupabaseBrowserClient} from './client';
 
 export type BusinessCommand = 'create_customer' | 'merge_customer' | 'create_vehicle' |
-  'receive_vehicle' | 'record_expense';
+  'receive_vehicle' | 'receive_workshop_vehicle' | 'record_expense';
 export interface CommandResult {id: string; command: BusinessCommand; createdAt: string;}
 export const emptyBusiness: BusinessData = {
   customers: [], vehicles: [], orders: [], movements: [], rentals: [], items: [], estimates: [],
@@ -12,7 +12,7 @@ const messages: Record<string, string> = {
   PERMISSION_DENIED: 'Tu usuario no tiene permiso para esta acción.',
   CUSTOMER_MATCH_EXISTS: 'Ya existe un cliente con ese teléfono o documento. Revisá las coincidencias.',
   IDEMPOTENCY_CONFLICT: 'Esta solicitud ya se usó con otros datos. Abrí un nuevo formulario.',
-  VERSION_CONFLICT: 'Los clientes cambiaron. Actualizá la página antes de fusionarlos.',
+  VERSION_CONFLICT: 'El registro cambió. Actualice la vista antes de guardar.',
   INVALID_MERGE: 'Seleccioná dos clientes activos distintos e indicá el motivo.',
   VEHICLE_UNAVAILABLE: 'El vehículo ya tiene un compromiso o no está disponible.',
   INVALID_OPERATION: 'La operación no existe o está cerrada.',
@@ -20,14 +20,15 @@ const messages: Record<string, string> = {
   INVALID_OWNER: 'Seleccioná un propietario activo.',
   DIRECT_PURCHASE_PAYMENT_REQUIRED: 'Esta referencia ya es una compra directa. Registre su pago en Costos de la orden para no duplicarlo.',
   INTERNAL_FLEET_VEHICLE_REQUIRED: 'El mantenimiento interno requiere un vehículo de la flota disponible.',
+  CUSTOMER_WORKSHOP_VEHICLE_REQUIRED:'Seleccione un vehículo de cliente fuera de la flota. Para un carro de alquiler, use mantenimiento interno.',
+  VEHICLE_HAS_OPEN_WORK:'Este vehículo ya tiene un expediente abierto. Complete su recepción o continúe en ese expediente.',
 };
 
 export async function executeCommand(
   command: BusinessCommand, payload: Record<string, unknown>, key: string,
 ): Promise<CommandResult> {
-  const {data, error} = await createSupabaseBrowserClient().rpc('execute_command', {
-    command, payload, idempotency_key: key,
-  });
+  const {data, error} = await createSupabaseBrowserClient().rpc(command==='receive_workshop_vehicle'?'receive_workshop_vehicle':'execute_command',
+    command==='receive_workshop_vehicle'?{payload,idempotency_key:key}:{command,payload,idempotency_key:key});
   if (error) throw new Error(messages[error.message] ?? 'No se guardó el registro. Revisá los datos o la conexión.');
   return data as CommandResult;
 }

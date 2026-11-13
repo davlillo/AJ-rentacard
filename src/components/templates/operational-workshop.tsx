@@ -39,7 +39,7 @@ function WorkshopWorkspace(){
           <td><Button variant="outline" size="sm" asChild><Link href={orderHref(o.id)}>Ver trabajo</Link></Button></td></tr>;})}</tbody></AdaptiveTable></div>
         {!jobs.length&&<p className="module-empty">No hay trabajos en esta vista.</p>}<Pagination {...page}/></section>
     </>}
-    <details className="mt-6 text-sm"><summary className="muted">Vehículos de clientes del taller</summary><section className="panel mt-4"><div className="table-scroll"><AdaptiveTable><thead><tr><th>Placa</th><th>Vehículo</th><th/></tr></thead><tbody>
+    <details open className="mt-6 text-sm"><summary className="font-semibold">Vehículos de clientes del taller</summary><section className="panel mt-4"><div className="table-scroll"><AdaptiveTable><thead><tr><th>Placa</th><th>Vehículo</th><th/></tr></thead><tbody>
       {data.vehicles.filter(v=>!v.inRentalFleet).map(v=><tr key={v.id}><td>{v.plate||'Sin registrar'}</td><td>{v.brand} {v.model}</td><td><Link className="text-link" href={vehicleHref(v.id)}>Ver expediente →</Link></td></tr>)}</tbody></AdaptiveTable></div>
       <div className="p-4"><Button variant="outline" disabled={!can('vehicles.write')} onClick={()=>open('vehiculo','client')}>Registrar vehículo de cliente</Button></div></section></details>
   </>;

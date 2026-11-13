@@ -20,6 +20,7 @@ import {localToday} from '@/lib/supabase/billing';
 import {loadCase,loadRentalCase,orderHref,rentalHref,vehicleHref,type CaseFile} from '@/lib/supabase/cases';
 import styles from './connected-ledger.module.css';
 import contextStyles from './diary-context.module.css';
+import {diaryNewestFirst} from '@/controladores/diary-order';
 
 type ReceiptSelection={customerId?:string;orderId?:string;reservationId?:string;paymentId?:string;};
 export function ConnectedLedger(){
@@ -80,7 +81,7 @@ export function ConnectedLedger(){
     (row.source_type==='refund'&&relatedIds.has('receipt:'+row.destination)))&&(area==='Todas'||row.area===area)&&
     `${row.concept} ${row.id} ${destination(row).label} ${row.links?.map(linkText).join(' ')??''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const rows=baseRows.filter(row=>filter==='Todos'||(filter==='Por asociar'?row.linkable:filter==='Por aplicar'?Number(row.unapplied_amount)>0:
-    filter==='Entradas'?row.inflow>0:filter==='Salidas'?row.outflow>0:row.kind==='Transferencia')).sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));
+    filter==='Entradas'?row.inflow>0:filter==='Salidas'?row.outflow>0:row.kind==='Transferencia')).sort(diaryNewestFirst);
   const page=usePagination(rows,query+from+to+account+area+filter+operationId);
   const days=[...new Set(page.items.map(row=>row.date))];const income=baseRows.reduce((sum,row)=>sum+Number(row.inflow),0);
   const outgoing=baseRows.reduce((sum,row)=>sum+Number(row.outflow),0);const unlinked=baseRows.filter(row=>row.linkable).length;
@@ -117,6 +118,7 @@ export function ConnectedLedger(){
         <div className={styles.toolbar}><div className={styles.presets}><span>Período</span><button onClick={()=>{setFrom(today);setTo(today);}}>Hoy</button>
           <button onClick={()=>{setFrom(today.slice(0,8)+'01');setTo(today);}}>Este mes</button></div>
           <Button variant="ghost" disabled={loading} onClick={()=>{void reload().catch(()=>undefined);}}><RefreshCw size={15} className={loading?'animate-spin':''}/>Actualizar</Button></div>
+        <p className="field-hint px-5 pb-3">Fecha más reciente primero. Dentro de cada día, el último registrado aparece arriba.</p>
         <div className={styles.filters}><label className="form-field"><span>Desde</span><input type="date" required value={from} onChange={e=>setFrom(e.target.value)}/></label>
           <label className="form-field"><span>Hasta</span><input type="date" required value={to} onChange={e=>setTo(e.target.value)}/></label>
           <label className="form-field"><span>Cuenta o caja</span><select aria-label="Cuenta o caja" value={account} onChange={e=>setAccount(e.target.value)}><option value="">Todas las cuentas</option>{diary?.accounts.map(a=><option key={a}>{a}</option>)}</select></label>

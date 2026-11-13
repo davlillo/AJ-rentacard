@@ -8,12 +8,16 @@ import {Pagination,usePagination} from './pagination';
 import {monthDays,shiftMonth,intersectsDay,calendarDate} from '@/controladores/month-calendar';
 import type {Vehicle} from '@/types';
 import type {Reservation,Commitment} from '@/lib/supabase/reservations';
+import {rentalDateTime,rentalWorkflow} from '@/controladores/rental-workflow';
 
-export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,onBlock}:{
+export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,onBlock,month:controlledMonth,onMonthChange,onFocusDate}:{
   vehicles:Vehicle[];reservations:Reservation[];commitments:Commitment[];onOpen:(id:string)=>void;onBlock:(block:Commitment)=>void;
+  month?:string;onMonthChange?:(month:string)=>void;onFocusDate?:(day:string)=>void;
 }){
   const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/El_Salvador'});
-  const [month,setMonth]=useState(today.slice(0,7));const [selected,setSelected]=useState('');const [expandedDay,setExpandedDay]=useState('');
+  const [localMonth,setLocalMonth]=useState(today.slice(0,7));const [selected,setSelected]=useState('');const [expandedDay,setExpandedDay]=useState('');
+  const month=controlledMonth??localMonth;
+  function setMonth(value:string){setLocalMonth(value);onMonthChange?.(value);}
   const days=monthDays(month);const fleetIds=new Set(vehicles.map(v=>v.id));
   const bookings=reservations.filter(r=>fleetIds.has(r.vehicle_id)&&r.status!=='Cancelada').sort((a,b)=>a.starts_at.localeCompare(b.starts_at));
   const page=usePagination(bookings,vehicles.map(v=>v.id).join(','),8);
@@ -22,13 +26,13 @@ export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,on
     kind:r.rental_state==='Preparado'?'Reservado':'Alquilado',customer:r.customer_snapshot.name})),
     ...commitments.filter(c=>c.active&&c.kind!=='Reserva'&&fleetIds.has(c.vehicle_id)).map(c=>({id:c.id,vehicleId:c.vehicle_id,
       start:c.starts_at,end:c.ends_at,kind:c.kind,customer:c.reason}))];
-  const period=(start:string,end:string)=>`${new Date(start).toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'America/El_Salvador'})} → ${end==='infinity'?'Sin fecha final':new Date(end).toLocaleDateString('es-SV',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'America/El_Salvador'})}`;
+  const period=(start:string,end:string)=>`Entrega: ${rentalDateTime(start)} · Devolución: ${rentalDateTime(end)}`;
   function select(id:string,focusStart=true){const booking=bookings.find(r=>r.id===id);if(!booking)return;
-    setSelected(id);if(focusStart)setMonth(calendarDate(booking.starts_at).slice(0,7));}
+    setSelected(id);if(focusStart){const day=calendarDate(booking.starts_at);setMonth(day.slice(0,7));onFocusDate?.(day);}}
   return <div className="rental-calendar-layout"><section className="panel month-calendar" aria-label="Calendario mensual de vehículos">
     <header><div><span className="section-kicker">DISPONIBILIDAD DE LA FLOTA</span><h2>{new Date(month+'-01T12:00:00Z').toLocaleDateString('es-SV',{month:'long',year:'numeric',timeZone:'America/El_Salvador'})}</h2></div>
       <div className="month-calendar-controls"><button aria-label="Mes anterior" onClick={()=>setMonth(shiftMonth(month,-1))}><ChevronLeft size={18}/></button>
-        <button onClick={()=>setMonth(today.slice(0,7))}>Hoy</button><button aria-label="Mes siguiente" onClick={()=>setMonth(shiftMonth(month,1))}><ChevronRight size={18}/></button></div></header>
+        <button onClick={()=>{setMonth(today.slice(0,7));onFocusDate?.(today);}}>Hoy</button><button aria-label="Mes siguiente" onClick={()=>setMonth(shiftMonth(month,1))}><ChevronRight size={18}/></button></div></header>
     <div className="calendar-weekdays" aria-hidden="true">{['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=><span key={d}>{d}</span>)}</div>
     <div className="calendar-month-grid" role="grid" aria-label={month}>{days.map(day=>{
       const entries=events.filter(e=>intersectsDay(day,e.start,e.end));
@@ -50,8 +54,8 @@ export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,on
         <VehicleImage vehicleId={r.vehicle_id} plate={car?.plate??''} fileId={car?.primaryPhotoId} size="thumbnail"/>
         <div><strong>{car?.plate||'Sin placa'} · {car?.brand} {car?.model}</strong><span>{r.customer_snapshot.name}</span></div>
       </button><div className="calendar-booking-period">{period(r.starts_at,r.ends_at)}</div>
-      <div className="calendar-booking-bottom"><Badge tone={r.status==='Borrador'||['Devuelto','Cerrado'].includes(r.rental_state)?'gray':r.rental_state==='Preparado'?'amber':'blue'}>{r.status==='Borrador'?'Borrador':r.rental_state==='Preparado'?'Reservado':r.rental_state==='Entregado'?'Alquilado':r.rental_state}</Badge>
-        <button className="text-link" onClick={()=>onOpen(r.id)}>Ver reserva →</button></div>
+      <div className="calendar-booking-bottom"><Badge tone={rentalWorkflow(r,commitments).tone}>{rentalWorkflow(r,commitments).label}</Badge>
+        <button className="text-link" onClick={()=>onOpen(r.id)}>{r.rental_state==='Preparado'?'Ver reserva':'Ver alquiler'} →</button></div>
       {r.status==='Borrador'&&<small>El borrador no bloquea fechas hasta confirmarlo.</small>}
     </article>;})}{!bookings.length&&<div className="calendar-no-bookings"><CalendarDays size={30}/><h3>Aún no hay reservas</h3><p>Las reservas confirmadas aparecerán en el calendario con su vehículo, cliente y fechas.</p></div>}</div>
     <Pagination {...page}/>{selection&&<div className="calendar-selection-note"><strong>Fechas seleccionadas</strong><p>{period(selection.starts_at,selection.ends_at)}</p>

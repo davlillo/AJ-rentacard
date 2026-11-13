@@ -10,7 +10,7 @@ import {loadBilling,localToday,type Receivable} from '@/lib/supabase/billing';
 import {money} from '@/controladores/finanzas';
 
 interface RentalPeriod {id:string;reservation_id:string;starts_on:string;ends_on:string;document_id:string;reason:string;}
-export function RentalPeriods({booking}:{booking:Reservation}){
+export function RentalPeriods({booking,onChange}:{booking:Reservation;onChange?:()=>Promise<void>}){
   const {can}=useBusiness();const [periods,setPeriods]=useState<RentalPeriod[]>([]);
   const [documents,setDocuments]=useState<Receivable[]>([]);const [paidThrough,setPaidThrough]=useState<string|null>(null);
   const [loadError,setLoadError]=useState('');
@@ -22,7 +22,7 @@ export function RentalPeriods({booking}:{booking:Reservation}){
       setDocuments((await loadBilling(localToday())).documents.filter(d=>d.reservation_id===booking.id||periods.some(p=>p.document_id===d.id)));
     }
   },[booking.id,can('expenses.read')]);
-  const {busy,error,execute}=useCaseAction(reload);
+  const {busy,error,execute}=useCaseAction(async()=>{await reload();await onChange?.();});
   useEffect(()=>{void reload().catch(error=>setLoadError(error.message));},[reload]);
   return <section className="mt-5"><h3 className="font-semibold">Períodos documentados y pagado hasta</h3>
     <p className="inline-note mt-3">Pagado hasta: <strong>{paidThrough??'Sin cobertura conciliada'}</strong>.

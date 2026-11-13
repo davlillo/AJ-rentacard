@@ -6,6 +6,7 @@ export interface Reservation {
   id:string;customer_id:string;vehicle_id:string;starts_at:string;ends_at:string;daily_rate:number;total:number;
   cleaning_minutes:number;status:'Borrador'|'Confirmada'|'Cancelada';rental_state:'Preparado'|'Entregado'|'Devuelto'|'Cerrado';
   seller_id:string;customer_snapshot:Customer;vehicle_snapshot:Vehicle;version:number;created_at:string;open_ended?:boolean;folio_number?:number;
+  actual_departure_at?:string|null;actual_return_at?:string|null;
 }
 export interface Commitment {id:string;vehicle_id:string;reservation_id:string|null;order_id:string|null;kind:'Reserva'|'Taller'|'Limpieza'|'Uso interno'|'Préstamo';starts_at:string;ends_at:string;active:boolean;reason:string;}
 export interface ReservationEvidence {id:string;reservation_id:string;channel:string;body:string;occurred_at:string;created_by:string;created_at:string;}
@@ -28,7 +29,7 @@ export const reservationMessages:Record<string,string>={
 };
 export async function rentalRpc<T>(name:string,args:Record<string,unknown>):Promise<T>{
   const {data,error}=await createSupabaseBrowserClient().rpc(name,args);
-  if(error)throw new Error(error.code==='23P01'?reservationMessages.RENTAL_CONFLICT:
+  if(error)throw new Error(error.code==='23P01'&&args.command==='period'?'Este período coincide con días ya facturados. Revise los cargos existentes antes de generar otro.':error.code==='23P01'?reservationMessages.RENTAL_CONFLICT:
     reservationMessages[error.message]??'No se guardó la operación. Revise los datos y la conexión.');
   return data as T;
 }
@@ -45,7 +46,7 @@ export async function rentalAlternatives(startsAt:string,endsAt:string,reservati
   return rentalRpc('rental_alternatives',{starts_at:startsAt,ends_at:endsAt,exclude_reservation:reservationId??null});
 }
 export const salvadorDateTime=(value:string)=>new Date(value+'-06:00').toISOString();
-export interface RentalInspection {id:string;reservation_id:string;kind:'Salida'|'Retorno';km:number;fuel:number;condition:string;accessories:string;evidence:string;occurred_at:string;created_by:string;}
+export interface RentalInspection {id:string;reservation_id:string;kind:'Salida'|'Retorno';km:number|null;fuel:number|null;condition:string;accessories:string;evidence:string;occurred_at:string;created_by:string;}
 export interface RentalExtra {id:string;reservation_id:string;description:string;amount:number|null;status:string;version:number;reason:string;}
 export async function loadRentalInspections(reservationId:string){
   const [inspections,extras]=await Promise.all([readRows<RentalInspection>('rental_inspections','*'),readRows<RentalExtra>('rental_extra_proposals','*')]);

@@ -35,6 +35,7 @@ function BudgetWorkspace(){
   const [selected,setSelected]=useState('');const [lines,setLines]=useState<BudgetLine[]>([emptyLine()]);
   const [discount,setDiscount]=useState('0');const [reason,setReason]=useState('');const [approval,setApproval]=useState(false);
   const [loadError,setLoadError]=useState('');const [loading,setLoading]=useState(true);const [query,setQuery]=useState('');
+  const [statusFilter,setStatusFilter]=useState('Todos');const [imageBusy,setImageBusy]=useState(false);const [imageError,setImageError]=useState('');
   const [caseFile,setCaseFile]=useState<CaseFile|null>(null);
   const [revisionParent,setRevisionParent]=useState<string|null>(null);
   const quoteRead=useRef(0);const initialized=useRef(false);
@@ -76,18 +77,30 @@ function BudgetWorkspace(){
   }
   function change(index:number,key:keyof Omit<BudgetLine,'sourceCostId'|'sourceCostVersion'>,value:string){setLines(lines.map((line,i)=>i===index?{...line,[key]:value}:line));}
   function show(version:QuoteVersion){setJobId(version.order_id);setSelected(version.id);setApproval(false);setView('detail');}
+  function chooseVehicle(id:string){
+    const order=data.orders.find(o=>o.vehicleId===id&&o.status!=='Entregado');
+    const previous=quotes.filter(q=>q.order_id===order?.id).sort((a,b)=>b.revision-a.revision)[0];
+    if(previous&&order?.internalJob===internal&&((internal)||order.customerId===customerId)){start(previous);return;}
+    setVehicleId(id);
+  }
   const totals=budgetDraftTotals(lines,discount);
   const latestQuotes=quotes.filter(q=>!quotes.some(other=>other.order_id===q.order_id&&other.revision>q.revision))
-    .filter(q=>`${q.vehicle_snapshot.plate} ${q.vehicle_snapshot.model} ${q.customer_snapshot.name} ${folio('PRE',q.folio_number)} ${data.orders.find(o=>o.id===q.order_id)?.service??''}`.toLowerCase().includes(query.toLowerCase()));
-  const page=usePagination(latestQuotes,query);
+    .filter(q=>`${q.vehicle_snapshot.plate} ${q.vehicle_snapshot.model} ${q.customer_snapshot.name} ${folio('PRE',q.folio_number)} ${data.orders.find(o=>o.id===q.order_id)?.service??''}`.toLowerCase().includes(query.toLowerCase()))
+    .filter(q=>{const status=data.orders.find(o=>o.id===q.order_id)?.status;return statusFilter==='Todos'||
+      (statusFilter==='Pendientes'?q.status==='Borrador':statusFilter==='Aprobados'?q.status==='Aprobado':statusFilter==='Rechazados'?q.status==='Rechazado':
+        statusFilter==='Por recibir'?status==='Presupuesto':statusFilter==='Entregados'?status==='Entregado':status!=='Presupuesto'&&status!=='Entregado');});
+  const page=usePagination(latestQuotes,query+statusFilter);
   const mismatched=existing&&(existing.internalJob!==internal||(!internal&&existing.customerId!==customerId));
+  const needsExistingScope=!!latest&&!job&&!mismatched&&revisionParent!==latest.id;
   return <><PageHeading title="Presupuestos" description="Cliente, vehículo y detalle del trabajo. Sin registrar un ingreso ni un cobro."
     actions={<>{view==='detail'&&quote&&<Button disabled={busy||!can('expenses.write')||job?.status==='Entregado'} onClick={()=>start(quote)}><PencilLine size={16}/>Editar presupuesto</Button>}
       <Button variant={view==='detail'?'outline':'default'} disabled={!can('expenses.write')} onClick={()=>start()}><Plus size={16}/>Nuevo presupuesto</Button></>}/>
     <nav className="module-tabs" aria-label="Vista de presupuestos"><button className={view!=='excel'?'active':''} onClick={()=>setView('list')}>Presupuestos</button>
       <button className={view==='excel'?'active':''} onClick={()=>setView('excel')}>Archivo original</button></nav>
     {view==='excel'&&<WorkbookPreview format="budget"/>}
-    {view==='list'&&<><div className="quote-list-tools"><div className="search-field"><Search size={16}/><input aria-label="Buscar presupuesto" placeholder="Folio, cliente o vehículo" value={query} onChange={e=>setQuery(e.target.value)}/></div></div>
+    {view==='list'&&<><div className="quote-list-tools"><div className="search-field"><Search size={16}/><input aria-label="Buscar presupuesto" placeholder="Folio, cliente o vehículo" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+      <label className="form-field"><span>Estado del presupuesto / trabajo</span><select aria-label="Estado del presupuesto" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+        {['Todos','Pendientes','Aprobados','Rechazados','Por recibir','En taller','Entregados'].map(value=><option key={value}>{value}</option>)}</select></label></div>
       <section className="panel"><AdaptiveTable className="quote-index-table"><thead><tr><th>Presupuesto / cliente</th><th>Vehículo y trabajo</th><th>Estado</th><th>Total</th><th/></tr></thead>
         <tbody>{page.items.map(q=>{const quotedJob=data.orders.find(o=>o.id===q.order_id);return <tr key={q.id}>
           <td><button className="text-link folio-link" onClick={()=>show(q)}>{folio('PRE',q.folio_number)}</button><small>{q.customer_snapshot.name||'Mantenimiento interno'}</small></td>
@@ -117,14 +130,16 @@ function BudgetWorkspace(){
           {!internal&&<label className="form-field"><span>Cliente *</span><select aria-label="Cliente del presupuesto" required disabled={!!job} value={customerId} onChange={e=>setCustomerId(e.target.value)}>
             <option value="">Seleccionar cliente</option>{data.customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
             {!job&&<button type="button" className="text-link" onClick={()=>open('cliente')}>Agregar cliente</button>}</label>}
-          <label className="form-field"><span>Vehículo *</span><select aria-label="Vehículo del presupuesto" required disabled={!!job} value={vehicleId} onChange={e=>setVehicleId(e.target.value)}>
-            <option value="">Seleccionar vehículo</option>{data.vehicles.filter(v=>!internal||v.inRentalFleet).map(v=><option key={v.id} value={v.id}>{v.plate||'Sin placa'} · {v.brand} {v.model} {v.year}</option>)}</select>
+          <label className="form-field"><span>Vehículo *</span><select aria-label="Vehículo del presupuesto" required disabled={!!job||loading} value={vehicleId} onChange={e=>chooseVehicle(e.target.value)}>
+            <option value="">Seleccionar vehículo</option>{data.vehicles.filter(v=>v.id===job?.vehicleId||(internal?v.inRentalFleet:!v.inRentalFleet&&v.ownership!=='Propio')).map(v=><option key={v.id} value={v.id}>{v.plate||'Sin placa'} · {v.brand} {v.model} {v.year}</option>)}</select>
             {!job&&<button type="button" className="text-link" onClick={()=>open('vehiculo','client')}>Agregar vehículo</button>}</label>
           <label className="form-field"><span>Trabajo a realizar *</span><input aria-label="Trabajo del presupuesto" required disabled={!!job} maxLength={2000} value={service} onChange={e=>setService(e.target.value)} placeholder="Ej. reparación de la parte delantera"/></label>
           <label className="form-field"><span>Área</span><select aria-label="Área del presupuesto" disabled={!!job} value={area} onChange={e=>setArea(e.target.value)}><option>Mecánica</option><option>Pintura</option></select></label>
         </div>
         {mismatched&&<p className="form-error" role="alert">Este vehículo tiene un trabajo abierto para otro cliente. Revise su expediente antes de continuar.</p>}
         {existing&&!job&&!mismatched&&<p className="field-hint">El presupuesto quedará vinculado al trabajo existente: {existing.service}.</p>}
+        {needsExistingScope&&<div className="inline-note"><p>Cargue la última versión antes de continuar para conservar sus partidas.</p>
+          <Button type="button" variant="outline" className="mt-3" onClick={()=>start(latest)}>Continuar presupuesto existente</Button></div>}
         {caseFile&&existing&&!mismatched&&<BudgetCostOrigins file={caseFile} orderId={existing.id} selected={lines.flatMap(l=>l.sourceCostId?[l.sourceCostId]:[])} onAdd={cost=>{
           const added:BudgetLine={description:cost.description,kind:'Indirecto',quantity:String(cost.quantity),unitPrice:'',unitCost:String(cost.unit_cost),sourceCostId:cost.id,sourceCostVersion:cost.version};
           setLines(current=>current.length===1&&!current[0].description&&!current[0].unitPrice?[added]:[...current,added]);
@@ -144,7 +159,7 @@ function BudgetWorkspace(){
         <div className="budget-tally">{!internal&&<><div><span>Subtotal</span><strong>{money(totals.subtotal)}</strong></div><div><label htmlFor="budget-discount">Descuento</label><input id="budget-discount" type="number" min="0" step="0.01" value={discount} onChange={e=>setDiscount(e.target.value)}/></div></>}
           <div className="grand-total"><span>{internal?'Costo previsto':'Total del presupuesto'}</span><strong>{internal?(totals.costComplete?money(totals.cost):'Por completar'):money(totals.total)}</strong></div></div>
         <label className="form-field"><span>Observaciones{latest?' / motivo del cambio *':''}</span><textarea value={reason} onChange={e=>setReason(e.target.value)} required={!!latest} placeholder="Alcance del trabajo, condiciones o motivo de esta versión"/></label>
-        <div className="budget-actions"><Button type="button" variant="outline" onClick={()=>setView('list')}>Cancelar</Button><Button type="submit" disabled={busy||!!mismatched||!vehicleId||(!internal&&!customerId)}>{busy?'Guardando…':'Guardar presupuesto'}</Button></div>
+        <div className="budget-actions"><Button type="button" variant="outline" onClick={()=>setView('list')}>Cancelar</Button><Button type="submit" disabled={busy||!!mismatched||needsExistingScope||!vehicleId||(!internal&&!customerId)}>{busy?'Guardando…':'Guardar presupuesto'}</Button></div>
       </fieldset></form></>}
     {view==='detail'&&quote&&<><button className="budget-back" onClick={()=>setView('list')}><ArrowLeft size={14}/>Volver a presupuestos</button><section className="budget-paper">
       <div className="budget-document-brand"><div className="document-logo">AJ<span>RENT A CAR</span></div><div><span>Presupuesto de servicio</span><strong>{folio('PRE',quote.folio_number)}</strong></div></div>
@@ -165,6 +180,11 @@ function BudgetWorkspace(){
           if(!stored)stored=await quotePdf(quote,pdf.bytesToBase64(await pdf.createBusinessPdf(pdf.quoteDocumentContent(quote),await pdf.browserFont())));
           if(stored)pdf.downloadPdf(stored.base64,`${folio('PRE',quote.folio_number)}-V${quote.revision}.pdf`);
         });}}><Download size={15}/>Descargar PDF</Button>}
+        {!internal&&<Button variant="outline" disabled={imageBusy||busy} onClick={()=>{setImageBusy(true);setImageError('');
+          void Promise.all([import('@/lib/documents/pdf'),import('@/lib/documents/quote-image')]).then(async([pdf,image])=>{
+            await image.downloadQuoteImages(pdf.quoteDocumentContent(quote),`${folio('PRE',quote.folio_number)}-V${quote.revision}`);
+          }).catch(error=>setImageError(error.message)).finally(()=>setImageBusy(false));
+        }}><Download size={15}/>{imageBusy?'Preparando imagen…':'Descargar imagen (PNG)'}</Button>}
       </div>
       {approval&&<form className="operation-form mt-5" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);const payload={estimateId:quote.id,approverName:String(f.get('name')),evidence:String(f.get('evidence'))};
         void execute('approve',payload,key=>estimateCommand('approve',payload,key)).then(saved=>{if(saved)setApproval(false);});
@@ -183,6 +203,6 @@ function BudgetWorkspace(){
       {caseFile&&<BudgetCostOrigins file={caseFile} orderId={quote.order_id}/>}
       <div className="budget-related"><Link className="text-link" href={orderHref(quote.order_id)}>Abrir expediente del trabajo →</Link><span>{job?.status==='Presupuesto'?'Recepción física pendiente':job?.status}</span></div>
     </section></>}
-    {(error||loadError)&&<p role="alert" className="form-error mt-4">{error||loadError}</p>}
+    {(error||loadError||imageError)&&<p role="alert" className="form-error mt-4">{error||loadError||imageError}</p>}
   </>;
 }

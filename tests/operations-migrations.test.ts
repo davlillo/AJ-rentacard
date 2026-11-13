@@ -7,6 +7,8 @@ test('HU13-HU30 empty-module rollback/reapply refuses any used module',async()=>
   const {db,command}=await operationalDb();
   try{
     await db.exec('reset role');const rollback=readFileSync('supabase/rollback/20261022001000_to_002000_operations.sql','utf8');
+    await db.exec(readFileSync('supabase/rollback/20261109000200_private_customer_documents.sql','utf8'));
+    await db.exec(readFileSync('supabase/rollback/20261109000100_targeted_operational_polish.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261102000100_connected_money.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261101000100_fleet_operational_availability.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261031000400_unknown_vehicle_registration.sql','utf8'));

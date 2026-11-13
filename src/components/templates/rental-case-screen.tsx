@@ -15,11 +15,16 @@ import {loadRentalCase,vehicleHref,type CaseFile} from '@/lib/supabase/cases';
 import {reservationCommand,salvadorDateTime,type ReservationCommand} from '@/lib/supabase/reservations';
 import {money} from '@/controladores/finanzas';
 import {folio} from '@/controladores/folios';
+import {RentalOperation} from '@/components/organisms/rental-operation';
+import {RentalCleaning} from '@/components/organisms/rental-cleaning';
+import {rentalSections,rentalSection,rentalWorkflow,type RentalSection} from '@/controladores/rental-workflow';
 
 export function RentalCaseScreen(){const id=useSearchParams().get('id')??'';return <RentalContent key={id} id={id}/>;}
 function RentalContent({id}:{id:string}){
   const {data,can,refresh,open,modal}=useBusiness();const [file,setFile]=useState<CaseFile|null>(null);
-  const [loadError,setLoadError]=useState('');const [tab,setTab]=useState('Resumen');
+  const requestedSection=useSearchParams().get('seccion');
+  const [loadError,setLoadError]=useState('');const [tab,setTab]=useState<RentalSection>(()=>rentalSection(requestedSection));
+  useEffect(()=>{setTab(rentalSection(requestedSection));},[requestedSection]);
   const readRevision=useRef(0);
   const readCase=useCallback(async()=>{const revision=++readRevision.current;
     try{const result=await loadRentalCase(id);if(revision===readRevision.current){setFile(result);setLoadError('');}}
@@ -35,35 +40,37 @@ function RentalContent({id}:{id:string}){
   const booking=file.reservations[0];const car=file.vehicle;
   return <><nav aria-label="Ubicación del alquiler" className="mb-5"><Link href="/vehiculos">Flota</Link> / <Link href={vehicleHref(car.id)}>{car.plate}</Link> / Alquiler</nav>
     <PageHeading eyebrow="PLIEGO DEL ALQUILER / OPERACIÓN INDEPENDIENTE" title={`${folio('ALQ',booking.folio_number)} · ${car.plate}`}
-      description={`${booking.status} · ${booking.rental_state} · ${booking.starts_at} → ${booking.open_ended?'Sin fecha final definida':booking.ends_at}`}
+      description={`${booking.customer_snapshot.name} · ${rentalWorkflow(booking,file.commitments).label}`}
       actions={<Button variant="outline" disabled={busy} onClick={()=>{void reload().catch(error=>setLoadError(error.message));}}>Actualizar alquiler</Button>}/>
     <nav className="tabs mb-5 flex-wrap" aria-label="Secciones del alquiler">
-      {['Resumen','Salida y devolución','Períodos y abonos','Gastos','Fotos y documentos','Contrato'].filter(t=>!['Períodos y abonos','Gastos'].includes(t)||file.financialAccess).map(t=>
+      {rentalSections.filter(t=>!['Cargos y abonos','Gastos'].includes(t)||file.financialAccess).map(t=>
         <button key={t} className={tab===t?'active':''} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}
     </nav>
-    {tab==='Resumen'&&<section className="panel p-5"><h2 className="font-semibold">Acuerdo y estado del alquiler</h2>
+    {tab==='Resumen'&&<><RentalOperation file={file} onChange={reload} onSection={setTab} busy={busy}
+      onConfirm={()=>{void mutate('confirm',{reservationId:id,expectedVersion:booking.version});}}/>
+      <section className="panel p-5 mt-5"><h2 className="font-semibold">Acuerdo del alquiler</h2>
       <dl className="detail-list mt-4"><div><dt>Estado físico del vehículo</dt><dd>{car.status}</dd></div>
-        <div><dt>Estado de la operación</dt><dd>{booking.status} · {booking.rental_state}</dd></div>
+        <div><dt>Estado de la operación</dt><dd>{rentalWorkflow(booking,file.commitments).label}</dd></div>
         <div><dt>Tarifa diaria acordada</dt><dd>{money(booking.daily_rate)}</dd></div>
         <div><dt>Precio final previsto</dt><dd>{booking.open_ended?'Sin total final acordado; documentar por períodos':money(booking.total)}</dd></div></dl>
       <p className="inline-note mt-4">Pagar un período no libera el carro ni cancela la reserva. El alquiler sin fin acordado mantiene ocupación abierta.</p>
-      {booking.status==='Borrador'&&<Button className="mt-4" disabled={busy||!can('orders.write')} onClick={()=>{void mutate('confirm',{reservationId:id,expectedVersion:booking.version});}}>Confirmar reserva del pliego</Button>}
-      {booking.status==='Confirmada'&&['Preparado','Entregado'].includes(booking.rental_state)&&can('orders.write')&&<form className="operation-form" onSubmit={event=>{
+      {booking.status==='Confirmada'&&['Preparado','Entregado'].includes(booking.rental_state)&&can('orders.write')&&<details className="mt-5"><summary>Extender o acordar la fecha de devolución</summary><form className="operation-form" onSubmit={event=>{
         event.preventDefault();const f=new FormData(event.currentTarget);void mutate(booking.open_ended?'set_end':'extend',{
           reservationId:id,expectedVersion:booking.version,endsAt:salvadorDateTime(String(f.get('endsAt'))),reason:String(f.get('reason'))});
       }}><label className="form-field"><span>{booking.open_ended?'Fecha final ahora acordada':'Nueva fecha final de extensión'}</span><input name="endsAt" type="datetime-local" required/></label>
         <label className="form-field"><span>Evidencia del cambio de fecha</span><textarea name="reason" required/></label>
-        <Button type="submit" disabled={busy}>{booking.open_ended?'Acordar fin del alquiler abierto':'Extender sin solapar compromisos'}</Button></form>}
+        <Button type="submit" disabled={busy}>{booking.open_ended?'Acordar fin del alquiler abierto':'Extender sin solapar compromisos'}</Button></form></details>}
       {booking.status!=='Cancelada'&&booking.rental_state==='Preparado'&&can('orders.write')&&<details className="mt-5"><summary>Cancelar reserva no entregada</summary>
         <form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
           void mutate('cancel',{reservationId:id,expectedVersion:booking.version,reason:String(f.get('reason'))});
         }}><label className="form-field"><span>Motivo de cancelación operativa</span><input name="reason" required/></label>
           <Button type="submit" variant="outline" disabled={busy}>Cancelar sin borrar deuda ni recibos</Button></form></details>}
-    </section>}
+    </section></>}
     {tab==='Salida y devolución'&&<section className="panel p-5"><RentalInspectionReview booking={booking} onChange={reload}/>
-      <p className="inline-note mt-4"><Link href="/vehiculos/bloqueos">La devolución mantiene revisión de limpieza. Consultar bloqueos para liberar disponibilidad.</Link></p></section>}
-    {tab==='Períodos y abonos'&&file.financialAccess&&<section className="panel p-5"><RentalPeriods key={file.applications?.length} booking={booking}/>
-      <CasePayments file={file} reservationId={id} onChange={reload}/></section>}
+      {['Devuelto','Cerrado'].includes(booking.rental_state)&&<Button className="mt-4" onClick={()=>setTab('Limpieza')}>Continuar con limpieza y disponibilidad</Button>}</section>}
+    {tab==='Limpieza'&&<RentalCleaning file={file} onChange={reload}/>}
+    {tab==='Cargos y abonos'&&file.financialAccess&&<section className="panel p-5"><h2 className="font-semibold">Cargos y abonos de {folio('ALQ',booking.folio_number)}</h2>
+      <CasePayments file={file} reservationId={id} onChange={reload}/><RentalPeriods key={file.applications?.length} booking={booking} onChange={reload}/></section>}
     {tab==='Gastos'&&file.financialAccess&&<section className="panel p-5"><h2 className="font-semibold">Gastos de este alquiler</h2>
       {(file.expenses??[]).map(e=><p className="inline-note mt-4" key={e.id}>{e.date} · {e.id} · {e.concept} · {money(e.amount)}</p>)}
       {!file.expenses?.length&&<p className="mt-4">No hay gastos asignados a este alquiler.</p>}

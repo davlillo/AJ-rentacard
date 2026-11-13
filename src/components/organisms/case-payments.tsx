@@ -15,9 +15,11 @@ import styles from './money-workspace.module.css';
 export function CasePayments({file,job,reservationId,onChange}:{file:CaseFile;job?:CaseOrder;reservationId?:string;onChange:()=>Promise<void>}){
   const {can}=useBusiness();const {busy,error,execute}=useCaseAction(onChange);
   const customerId=job?.customer_id??file.reservations.find(r=>r.id===reservationId)?.customer_id;
+  const inconsistentWorkshop=!!job&&!job.internal_job&&file.vehicle.ownership==='Propio';
   return <section><p className="inline-note">Cargo, recibo de caja y aplicación son hechos distintos. Aquí se muestra únicamente
     el importe vinculado a este expediente, no toda la deuda del cliente.</p>
-    {job&&!job.internal_job&&can('expenses.write')&&<form className="operation-form" onSubmit={event=>{
+    {inconsistentWorkshop&&<p className="inline-note mt-4">El vehículo figura como propio de AJ, pero el trabajo tiene cliente. Revise el tipo de ingreso antes de emitir cargos. No se ha reclasificado el expediente.</p>}
+    {job&&!job.internal_job&&!inconsistentWorkshop&&can('expenses.write')&&<form className="operation-form" onSubmit={event=>{
       event.preventDefault();const f=new FormData(event.currentTarget);void execute('bill_scope',{
         orderId:job.id,date:String(f.get('date')),dueOn:String(f.get('dueOn'))});
     }}><h3 className="font-semibold">Emitir cargo del alcance aprobado aún no facturado</h3>
@@ -33,7 +35,7 @@ export function CasePayments({file,job,reservationId,onChange}:{file:CaseFile;jo
       <p>{p.paid_on} · {p.reference}. Recibo original: {money(p.amount)}. Todavía no reduce un cargo de este trabajo.</p>
       <Link className={styles.sourceLink} href={diaryHref(job?.id??reservationId,'receipt:'+p.id,p.paid_on)}>Ver el recibo original en diario →</Link>
     </div>)}</div>}
-    {customerId&&!job?.internal_job&&can('expenses.write')&&<ReceiptForm key={customerId+String(job?.id??reservationId)}
+    {customerId&&!job?.internal_job&&(!inconsistentWorkshop||!!file.documents?.length)&&can('expenses.write')&&<ReceiptForm key={customerId+String(job?.id??reservationId)}
       customerId={customerId} orderId={job?.id} reservationId={reservationId} onChange={onChange}
       revision={(file.documents??[]).map(d=>d.id+':'+d.scope_balance).join('|')+(file.advances??[]).map(p=>p.id+':'+p.available_amount).join('|')}/>}
     <h3 className="mt-5 font-semibold">Aplicaciones de cobros</h3>

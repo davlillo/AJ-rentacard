@@ -19,13 +19,14 @@ export interface CaseDocument {id:string;description:string;amount:number;scope_
 export interface CaseExpense {id:string;date:string;concept:string;amount:number;scope_amount?:number;shared?:boolean;account:string;support:string;direct_purchase_cost_id:string|null;}
 export interface CaseFile {
   vehicle:CaseVehicle;financialAccess:boolean;orders:CaseOrder[];reservations:Reservation[];commitments:Commitment[];
-  inspections:{id:string;order_id:string;km:number;fuel:number;condition:string;accessories:string;created_at:string}[];
+  inspections:{id:string;order_id:string;km:number|null;fuel:number|null;condition:string;accessories:string;created_at:string}[];
   files:VehicleFile[];quotes?:QuoteVersion[];costs?:WorkshopCost[];allocations?:CostAllocation[];
   expenses?:CaseExpense[];documents?:CaseDocument[];applications?:(PaymentApplication&{scope_amount:number})[];payments?:CustomerPayment[];
   advances?:(CustomerPayment&{available_amount:number})[];
 }
 const messages:Record<string,string>={
   PERMISSION_DENIED:'No tiene permiso para esta acción.',VERSION_CONFLICT:'El registro cambió. Actualice antes de guardar.',
+  INTERNAL_VEHICLE_NOT_A_SALE:'Este vehículo está registrado como propio de AJ. Revise el tipo de ingreso; el mantenimiento interno no se factura a un cliente.',
   PARENT_VERSION_CONFLICT:'Existe una versión más reciente. Actualice el pliego.',
   VEHICLE_NOT_FOUND:'No existe el vehículo solicitado.',ORDER_NOT_FOUND:'El ingreso no pertenece a este vehículo.',
   ORDER_NOT_OPEN:'El ingreso ya está entregado.',ODOMETER_CANNOT_DECREASE:'El kilometraje no puede disminuir.',

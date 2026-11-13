@@ -22,7 +22,7 @@ import {CobrosScreen} from './cobros-screen';
 import {ReceiptDialog} from '@/components/organisms/linked-receipt';
 import {diaryHref} from '@/controladores/linked-money';
 
-interface Operation {id:string;kind:'Taller'|'Alquiler';vehicleId:string;customer:string;customerId?:string;title:string;internal?:boolean;}
+interface Operation {id:string;kind:'Taller'|'Alquiler';vehicleId:string;customer:string;customerId?:string;title:string;internal?:boolean;active:boolean;}
 export function BillingScreen(){const {source}=useBusiness();return source==='supabase'?<BillingWorkspace/>:<CobrosScreen/>;}
 function BillingWorkspace(){
   const {data,modal,toast}=useBusiness();const [rentals,setRentals]=useState<Operation[]>([]);
@@ -37,7 +37,8 @@ function BillingWorkspace(){
     try{const [billing,calendar]=await Promise.all([loadBilling(localToday()),loadCalendar()]);
       if(request!==readRevision.current)return;
       setDocuments(billing.documents);setRentals(calendar.reservations.filter(r=>r.status!=='Cancelada'||billing.documents.some(d=>d.reservation_id===r.id))
-        .map(r=>({id:r.id,kind:'Alquiler',vehicleId:r.vehicle_id,customer:r.customer_snapshot.name,customerId:r.customer_id,title:`Alquiler · ${folio('ALQ',r.folio_number)}`})));
+        .map(r=>({id:r.id,kind:'Alquiler',vehicleId:r.vehicle_id,customer:r.customer_snapshot.name,customerId:r.customer_id,
+          active:r.status!=='Cancelada'&&['Preparado','Entregado'].includes(r.rental_state),title:`Alquiler · ${folio('ALQ',r.folio_number)}`})));
       setRevision(value=>value+1);setError('');
     }catch(error){if(request===readRevision.current)throw error;}
     finally{if(request===readRevision.current)setLoading(false);}
@@ -45,7 +46,8 @@ function BillingWorkspace(){
   useEffect(()=>{let active=true;void reload().catch(error=>{if(active)setError(error.message);});
     return()=>{active=false;readRevision.current++;};},[reload,data,modal.kind]);
   const operations:Operation[]=[...data.orders.map(o=>({id:o.id,kind:'Taller' as const,vehicleId:o.vehicleId,internal:o.internalJob,
-    customer:o.internalJob?'AJ · Mantenimiento interno':data.customers.find(c=>c.id===o.customerId)?.name??'Cliente sin registrar',customerId:o.customerId??undefined,title:o.service})),...rentals];
+    active:o.status!=='Entregado',customer:o.internalJob?'AJ · Mantenimiento interno':data.customers.find(c=>c.id===o.customerId)?.name??'Cliente sin registrar',
+    customerId:o.customerId??undefined,title:o.service})),...rentals].sort((a,b)=>Number(b.active)-Number(a.active));
   const filtered=operations.filter(o=>{const car=data.vehicles.find(v=>v.id===o.vehicleId);return(!operationFilter||o.id===operationFilter)&&(area==='Todas'||o.kind===area)&&
     `${o.title} ${o.customer} ${car?.plate} ${car?.brand} ${car?.model}`.toLowerCase().includes(query.toLowerCase());});
   const page=usePagination(filtered,query+area);const pageKey=page.items.map(o=>o.id).join('|');
@@ -81,6 +83,7 @@ function OperationCollection({operation,file,onChange}:{operation:Operation;file
   const amount=file?operationMoney(file,operation.kind==='Taller'?operation.id:undefined):null;
   const href=operation.kind==='Taller'?orderHref(operation.id):rentalHref(operation.id);
   const payable=file?.documents?.filter(d=>d.scope_balance>0&&!d.grouped)??[];
+  const inconsistentWorkshop=operation.kind==='Taller'&&!operation.internal&&car?.ownership==='Propio';
   const quoteHref=amount?.quote?`/presupuestos/?id=${encodeURIComponent(amount.quote.id)}`:operation.kind==='Taller'?`/presupuestos/?trabajo=${encodeURIComponent(operation.id)}`:href;
   return <article className="collection-card" aria-label={`${operation.customer} · ${car?.plate||car?.model||operation.kind}`}>
     <header><VehicleImage vehicleId={operation.vehicleId} plate={car?.plate??''} fileId={car?.primaryPhotoId} size="thumbnail"/>
@@ -101,10 +104,11 @@ function OperationCollection({operation,file,onChange}:{operation:Operation;file
       <Link className="text-link ml-2" href={href+'&seccion=Costos'}>Revisar en el folio →</Link></p>}
     {!!amount?.advances&&<p className="inline-note mx-4 mt-4">Anticipos vinculados sin aplicar: <strong>{money(amount.advances)}</strong>. Ya están recibidos; no los registre otra vez.</p>}
     {file?.documents?.some(d=>d.scope_balance>0&&d.due_on<localToday())&&<p className="inline-note mx-4 mt-4">Este trabajo tiene saldo vencido. La entrega no cierra su cuenta por cobrar.</p>}
+    {inconsistentWorkshop&&<p className="inline-note mx-4 mt-4">Este expediente tiene cliente, pero el vehículo está registrado como propio de AJ. Revise el tipo de ingreso antes de facturar; no se cambió su historial.</p>}
     <div className="collection-actions"><Button variant="outline" size="sm" asChild><Link href={quoteHref}><FileText size={14}/>{amount?.quote?'Ver presupuesto':'Ver operación'}</Link></Button>
       {can('expenses.write')&&operation.kind==='Taller'&&<Button variant="outline" size="sm" onClick={()=>open('gasto',operation.id)}><Plus size={14}/>Registrar gasto</Button>}
-      {can('expenses.write')&&operation.kind==='Taller'&&!operation.internal&&!!amount?.unbilled&&<Button size="sm" onClick={()=>setForm(form==='issue'?null:'issue')}>Crear cargo del presupuesto</Button>}
-      {can('expenses.write')&&!operation.internal&&operation.customerId&&<Button size="sm" onClick={()=>setReceiptOpen(true)}><Wallet size={14}/>{payable.length?'Registrar abono':'Registrar anticipo'}</Button>}
+      {can('expenses.write')&&operation.kind==='Taller'&&!operation.internal&&!inconsistentWorkshop&&!!amount?.unbilled&&<Button size="sm" onClick={()=>setForm(form==='issue'?null:'issue')}>Crear cargo del presupuesto</Button>}
+      {can('expenses.write')&&!operation.internal&&(!inconsistentWorkshop||payable.length>0)&&operation.customerId&&<Button size="sm" onClick={()=>setReceiptOpen(true)}><Wallet size={14}/>{payable.length?'Registrar abono':'Registrar anticipo'}</Button>}
       <Link className="collection-case-link" href={href}>Ver expediente<ArrowUpRight size={14}/></Link>
     </div>
     {form&&<form className="collection-form" onSubmit={event=>{

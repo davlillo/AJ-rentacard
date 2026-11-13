@@ -1,5 +1,5 @@
 'use client';
-import {Suspense,useEffect,useRef,useState} from 'react';
+import {Suspense,useCallback,useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {useBusiness} from '@/hooks/use-business';
@@ -19,6 +19,9 @@ import {AdaptiveTable} from '@/components/organisms/adaptive-table';
 import {Pagination,usePagination} from '@/components/organisms/pagination';
 import {folio} from '@/controladores/folios';
 import {RentalMonthCalendar} from '@/components/organisms/rental-month-calendar';
+import {RentalGantt} from '@/components/organisms/rental-gantt';
+import {RentalProgress,RentalDates} from '@/components/organisms/rental-operation';
+import {rentalDateTime,rentalWorkflow,rentalSectionHref} from '@/controladores/rental-workflow';
 
 type CalendarView='calendar'|'reservations'|'blocks';
 export function CalendarScreen({view='calendar'}:{view?:CalendarView}){const {source}=useBusiness();return source==='supabase'?<Suspense fallback={<p>Cargando flota…</p>}><CalendarWorkspace view={view}/></Suspense>:<CalendarioScreen/>;}
@@ -29,6 +32,8 @@ function CalendarWorkspace({view}:{view:CalendarView}){
   const [paymentStatuses,setPaymentStatuses]=useState<Record<string,string>>({});
   const [query,setQuery]=useState('');const [category,setCategory]=useState('Todas');const [create,setCreate]=useState(false);
   const [commercialLine,setCommercialLine]=useState('Todas');
+  const [calendarDay,setCalendarDay]=useState(()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/El_Salvador'}));
+  const readRevision=useRef(0);
   const [openEnded,setOpenEnded]=useState(false);
   const [section,setSection]=useState<CalendarView|'excel'>(view);
   const [selected,setSelected]=useState<string|null>(null);const [block,setBlock]=useState<Commitment|null>(null);
@@ -40,8 +45,13 @@ function CalendarWorkspace({view}:{view:CalendarView}){
     `${vehicle.plate} ${vehicle.brand} ${vehicle.model}`.toLowerCase().includes(query.toLowerCase()))
      .sort((a,b)=>(a.commercialLine||'Sin línea').localeCompare(b.commercialLine||'Sin línea')||a.plate.localeCompare(b.plate));
   const bookingPage=usePagination(reservations.filter(r=>vehicles.some(v=>v.id===r.vehicle_id)),query+category+commercialLine);
-  async function reload(){const loaded=await loadCalendar();setReservations(loaded.reservations);setCommitments(loaded.commitments);setEvidence(loaded.evidence);setPaymentStatuses(loaded.paymentStatuses);}
-  useEffect(()=>{void reload().catch(error=>setError(error.message));},[]);
+  const reload=useCallback(async()=>{const revision=++readRevision.current;
+    try{const loaded=await loadCalendar();if(revision!==readRevision.current)return;
+      setReservations(loaded.reservations);setCommitments(loaded.commitments);setEvidence(loaded.evidence);setPaymentStatuses(loaded.paymentStatuses);setError('');
+    }catch(error){if(revision===readRevision.current)throw error;}
+  },[]);
+  useEffect(()=>{let active=true;void reload().catch(error=>{if(active)setError(error.message);});
+    return()=>{active=false;readRevision.current++;};},[reload,data]);
   useEffect(()=>{if(search.get('reserva'))setSelected(search.get('reserva'));},[search]);
   async function run(action:()=>Promise<void>){if(sending.current)return;sending.current=true;setBusy(true);setError('');
     try{await action();}catch(error){setError((error as Error).message);}finally{sending.current=false;setBusy(false);}}
@@ -64,7 +74,9 @@ function CalendarWorkspace({view}:{view:CalendarView}){
         <option>Todas</option>{[...new Set(data.vehicles.filter(v=>v.inRentalFleet).map(v=>v.commercialLine||'Sin línea'))].sort().map(line=><option key={line}>{line}</option>)}</select></label>
       <Button variant="outline" disabled={busy} onClick={()=>{void run(reload);}}>Actualizar agenda</Button>
     </div>
-    {section==='calendar'&&<RentalMonthCalendar vehicles={vehicles} reservations={reservations} commitments={commitments} onOpen={show} onBlock={setBlock}/>}
+    {section==='calendar'&&<><RentalMonthCalendar vehicles={vehicles} reservations={reservations} commitments={commitments} onOpen={show} onBlock={setBlock}
+      month={calendarDay.slice(0,7)} onMonthChange={month=>setCalendarDay(month+'-01')} onFocusDate={setCalendarDay}/>
+      <RentalGantt vehicles={vehicles} reservations={reservations} commitments={commitments} from={calendarDay} onNavigate={setCalendarDay} onOpen={show} onBlock={setBlock}/></>}
     {section==='blocks'&&<details className="panel p-5 mt-5"><summary>Programar bloqueo de taller, limpieza, préstamo o uso interno</summary><form className="operation-form" onSubmit={event=>{
       event.preventDefault();const f=new FormData(event.currentTarget);void run(async()=>{await mutate('block',{vehicleId:String(f.get('vehicleId')),kind:String(f.get('kind')),
         startsAt:salvadorDateTime(String(f.get('startsAt'))),endsAt:salvadorDateTime(String(f.get('endsAt'))),reason:String(f.get('reason'))});toast('Bloqueo guardado.');});
@@ -76,12 +88,12 @@ function CalendarWorkspace({view}:{view:CalendarView}){
     </form></details>}
     {section==='blocks'?<section className="panel p-5 mt-5"><h2 className="font-semibold">Bloqueos activos de la flota</h2>
       {commitments.filter(c=>c.active&&c.kind!=='Reserva'&&vehicles.some(v=>v.id===c.vehicle_id)).map(c=><article className="inline-note mt-4" key={c.id}>
-        <p>{vehicles.find(v=>v.id===c.vehicle_id)?.plate} · {c.kind} · {c.reason}</p><p>{c.starts_at} → {c.ends_at==='infinity'?'Sin fin previsto':c.ends_at}</p>
+        <p>{vehicles.find(v=>v.id===c.vehicle_id)?.plate} · {c.kind} · {c.reason}</p><p>Desde {rentalDateTime(c.starts_at)} · Hasta {rentalDateTime(c.ends_at)}</p>
         {c.order_id&&<Link href={orderHref(c.order_id)}>Abrir pliego {c.order_id}</Link>}
         <Button variant="outline" onClick={()=>setBlock(c)}>Revisar bloqueo</Button></article>)}
     </section>:section==='reservations'&&<section className={`panel ${styles.records}`}><div className="table-scroll"><AdaptiveTable><thead><tr><th>Reserva / cliente</th><th>Fechas</th><th>Estado</th><th>Precio previsto</th><th/></tr></thead>
       <tbody>{bookingPage.items.map(r=><tr key={r.id}><td><strong>{folio('ALQ',r.folio_number)}</strong><strong>{r.customer_snapshot.name}</strong><small>{r.vehicle_snapshot.plate}</small></td>
-        <td>{new Date(r.starts_at).toLocaleString('es-SV')}<small>{r.open_ended?'Sin fecha final definida':new Date(r.ends_at).toLocaleString('es-SV')}</small></td><td>{r.status} · {r.rental_state}</td>
+        <td>Entrega: {rentalDateTime(r.starts_at)}<small>Devolución: {r.open_ended?'Sin fecha final definida':rentalDateTime(r.ends_at)}</small></td><td>{rentalWorkflow(r,commitments).label}</td>
         <td className={styles.amount}>{r.open_ended?'Por período':money(r.total)}<small>{paymentStatuses[r.id]??'Por consultar'}</small></td><td><Button asChild variant="outline"><Link href={rentalHref(r.id)}>Abrir pliego de alquiler</Link></Button>
           </td></tr>)}</tbody></AdaptiveTable></div>{!bookingPage.total&&<p className="module-empty">No hay reservas registradas. Consulte las anotaciones históricas en Archivo original.</p>}<Pagination {...bookingPage}/></section>}
     </>}
@@ -103,26 +115,33 @@ function CalendarWorkspace({view}:{view:CalendarView}){
       </form>{error&&<p role="alert" className="form-error">{error}</p>}
     </DialogContent></Dialog>
     <Dialog open={!!booking} onOpenChange={open=>!open&&!busy&&setSelected(null)}><DialogContent className="max-w-3xl">
-      <DialogTitle>Reserva de {booking?.customer_snapshot.name}</DialogTitle><DialogDescription>Estado, acuerdos y cambios auditados; pago y disponibilidad son estados separados.</DialogDescription>
-      {booking&&<><p className="inline-note mt-4">{booking.vehicle_snapshot.plate} · {booking.status} · {booking.rental_state} · V{booking.version} · {booking.open_ended?'Sin total final acordado':money(booking.total)}</p>
-        <Button variant="outline" asChild><Link href={vehicleHref(booking.vehicle_id)}>Abrir expediente del vehículo</Link></Button>
+      <DialogTitle>{booking?.rental_state==='Preparado'?'Reserva':'Alquiler'} de {booking?.customer_snapshot.name}</DialogTitle><DialogDescription>{booking?.vehicle_snapshot.plate} · {folio('ALQ',booking?.folio_number)} · Horario de El Salvador (UTC−6)</DialogDescription>
+      {booking&&<><RentalProgress booking={booking} commitments={commitments}/><RentalDates booking={booking}/>
+        <div className="rental-actions">
+          {booking.status==='Confirmada'&&booking.rental_state==='Entregado'&&<Button asChild><Link href={rentalSectionHref(booking.id,'Salida y devolución')}>Registrar devolución</Link></Button>}
+          {booking.status==='Confirmada'&&booking.rental_state==='Preparado'&&<Button asChild><Link href={rentalSectionHref(booking.id,'Salida y devolución')}>Preparar entrega</Link></Button>}
+          {['Devuelto','Cerrado'].includes(booking.rental_state)&&<Button asChild><Link href={rentalSectionHref(booking.id,'Limpieza')}>Revisar limpieza</Link></Button>}
+          {can('expenses.read')&&<Button variant="outline" asChild><Link href={rentalSectionHref(booking.id)}>Ver saldo y cobrar</Link></Button>}
+          <Button variant="outline" asChild><Link href={vehicleHref(booking.vehicle_id)}>Abrir expediente del vehículo</Link></Button>
+        </div>
+        <p className="field-hint mt-4">Precio previsto: {booking.open_ended?'Sin total final acordado':money(booking.total)}. No equivale a un cargo ni a un pago.</p>
         {can('expenses.write')&&<Button variant="outline" onClick={()=>open('gasto',`reservation:${booking.id}`)}>Registrar gasto de alquiler</Button>}
         {booking.status==='Borrador'&&<Button disabled={busy} onClick={()=>{void run(async()=>{await mutate('confirm',{reservationId:booking.id,expectedVersion:booking.version});});}}>Confirmar reserva</Button>}
-        {booking.status==='Confirmada'&&<form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);void run(async()=>{
+        {booking.status==='Confirmada'&&['Preparado','Entregado'].includes(booking.rental_state)&&<details className="mt-4"><summary>Extender o acordar la fecha de devolución</summary><form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);void run(async()=>{
           const endsAt=salvadorDateTime(String(f.get('endsAt')));setAlternatives([]);
           try{await mutate(booking.open_ended?'set_end':'extend',{reservationId:booking.id,expectedVersion:booking.version,endsAt,reason:String(f.get('reason'))});}
           catch(error){setAlternatives(await rentalAlternatives(booking.starts_at,new Date(Date.parse(endsAt)+booking.cleaning_minutes*60000).toISOString(),booking.id));throw error;}
         });}}><label className="form-field"><span>Nueva fecha final</span><input name="endsAt" type="datetime-local" required/></label>
           <label className="form-field"><span>Motivo de extensión</span><input name="reason" required/></label><Button type="submit" variant="outline" disabled={busy}>{booking.open_ended?'Acordar fecha final':'Solicitar extensión'}</Button>
-        </form>}
+        </form></details>}
         {!!alternatives.length&&<p className="inline-note">Alternativas disponibles: {alternatives.map(car=>car.plate).join(', ')}</p>}
-        {booking.status!=='Cancelada'&&booking.rental_state==='Preparado'&&<form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
+        {booking.status!=='Cancelada'&&booking.rental_state==='Preparado'&&<details className="mt-4"><summary>Cancelar reserva no entregada</summary><form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
           void run(async()=>{await mutate('cancel',{reservationId:booking.id,expectedVersion:booking.version,reason:String(f.get('reason'))});});
-        }}><label className="form-field"><span>Motivo de cancelación</span><input name="reason" required/></label><Button variant="outline" type="submit" disabled={busy}>Cancelar reserva con motivo</Button></form>}
+        }}><label className="form-field"><span>Motivo de cancelación</span><input name="reason" required/></label><Button variant="outline" type="submit" disabled={busy}>Cancelar reserva con motivo</Button></form></details>}
         <form className="operation-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;const f=new FormData(form);void run(async()=>{
           await mutate('evidence',{reservationId:booking.id,body:String(f.get('body'))});form.reset();
-        });}}><label className="form-field"><span>Acuerdo o texto de WhatsApp</span><textarea name="body" required maxLength={20000}/></label><Button type="submit" variant="outline" disabled={busy}>Guardar evidencia de WhatsApp</Button></form>
-        {evidence.filter(note=>note.reservation_id===booking.id).map(note=><article className="inline-note mt-4" key={note.id}><p>{note.body}</p><small>{note.created_by} · {new Date(note.created_at).toLocaleString('es-SV')}</small></article>)}
+        });}}><label className="form-field"><span>Acuerdo u observaciones de la reserva</span><textarea name="body" required maxLength={20000}/></label><Button type="submit" variant="outline" disabled={busy}>Guardar acuerdo u observaciones</Button></form>
+        {evidence.filter(note=>note.reservation_id===booking.id).map(note=><article className="inline-note mt-4" key={note.id}><p>{note.body}</p><small>{rentalDateTime(note.created_at)}</small></article>)}
         <RentalInspectionReview key={booking.id} booking={booking} onChange={async()=>{await reload();await refresh();}}/>
         <RentalContracts booking={booking}/>
         <RentalPeriods booking={booking}/>

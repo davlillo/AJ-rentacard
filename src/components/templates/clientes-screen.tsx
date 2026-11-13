@@ -15,6 +15,7 @@ import {AdaptiveTable} from '@/components/organisms/adaptive-table';
 import {Pagination,usePagination} from '@/components/organisms/pagination';
 import {folio} from '@/controladores/folios';
 import {RegistryDetails} from '@/components/organisms/registry-details';
+import {CustomerDocuments} from '@/components/organisms/customer-documents';
 
 export function ClientesScreen() {
   const {data, open, source, can, command, toast,refresh} = useBusiness();
@@ -64,7 +65,7 @@ export function ClientesScreen() {
             .reduce((sum, record) => sum + record.total - record.paid, 0);
           return <tr key={customer.id}>
             <td><div className="cell-with-icon"><span className={`avatar avatar-${index % 4}`}>{initials(customer.name)}</span>
-              <div><strong>{customer.name}</strong>{customer.document&&<small>{customer.document}</small>}</div></div></td>
+              <div><button type="button" className="text-link text-left font-semibold" onClick={()=>select(customer.id)}>{customer.name}</button>{customer.document&&<small>{customer.document}</small>}</div></div></td>
             <td><strong className="font-normal">{customer.phone||'Teléfono sin registrar'}</strong>{customer.email&&<small>{customer.email}</small>}</td>
             <td><Badge tone={customer.type === 'Empresa' ? 'blue' : 'green'}>{customer.type}</Badge></td>
             <td>{count} {count===1?'operación':'operaciones'}</td><td className={balance ? 'font-semibold' : 'muted'}>
@@ -85,7 +86,8 @@ export function ClientesScreen() {
             <div><dt>Teléfono</dt><dd>{customer.phone||'Sin registrar'}</dd></div><div><dt>Correo</dt><dd>{customer.email || 'Sin registrar'}</dd></div>
             <div><dt>Documento</dt><dd>{customer.document || 'Sin registrar'}</dd></div><div><dt>Tipo</dt><dd>{customer.type}</dd></div>
           </dl>
-          {source==='supabase'&&can('customers.write')&&<RegistryDetails customer={customer} onChange={refresh}/>}
+          {source==='supabase'&&can('customers.write')&&<><RegistryDetails key={customer.id} customer={customer} onChange={refresh} expanded/>
+            <CustomerDocuments key={'documents:'+customer.id} customerId={customer.id}/></>}
           {!!customer.aliases?.length && <section className="inline-note mt-4"><strong>Fichas fusionadas conservadas</strong>
             {customer.aliases.map((alias, index) => <p key={index}>{alias.name} · {alias.phone} · {alias.document}</p>)}
           </section>}
@@ -96,7 +98,7 @@ export function ClientesScreen() {
             </div><span>{operation.status}</span></div>)}
           {source === 'demo' && <Button className="mt-6 w-full" onClick={() => {select(null); open('reserva');}}>
             Crear una reserva<Plus size={15}/></Button>}
-          {source === 'supabase' && can('customers.merge') && <form className="operation-form" onSubmit={async event => {
+          {source === 'supabase' && can('customers.merge') && <details className="mt-6"><summary className="text-link">Opciones avanzadas: fusionar una ficha duplicada</summary><form className="operation-form" onSubmit={async event => {
             event.preventDefault();
             if (!target || !confirmed || sending.current) return;
             const payload = {sourceId: customer.id, targetId: target.id, sourceVersion: customer.version,
@@ -124,7 +126,7 @@ export function ClientesScreen() {
               onChange={event => setConfirmed(event.target.checked)}/> Confirmo que son la misma persona o empresa.</label>
             {error && <p className="form-error" role="alert">{error}</p>}
             <Button type="submit" disabled={busy || !target || !confirmed}>{busy ? 'Fusionando…' : 'Confirmar fusión'}</Button>
-          </form>}
+          </form></details>}
         </>}
       </DialogContent>
     </Dialog>

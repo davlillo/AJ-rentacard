@@ -35,7 +35,7 @@
 .adaptive-table td>strong,.adaptive-table td>small{display:block}
 .adaptive-table td input,.adaptive-table td select,.adaptive-table td textarea{width:100%;min-width:0}
 .operations-app .panel,.operations-app .budget-totals,.operations-app .operation-form{min-width:0;max-width:100%}
-.operations-app .operation-form button{max-width:100%;white-space:normal;height:auto;min-height:40px}
+.operations-app .operation-form button,[role="dialog"] .operation-form button{max-width:100%;white-space:normal;height:auto;min-height:40px}
 .operations-app .vehicle-card{display:flex;flex-direction:column;padding-top:20px}
 .operations-app .vehicle-card-top{margin-bottom:20px}.operations-app .vehicle-card-info{margin-bottom:8px}
 .operations-app .vehicle-card-footer{margin-top:auto;gap:12px}.operations-app .vehicle-card-info>div>span{display:block;margin-top:5px;color:#647184;font-size:12px}
@@ -123,3 +123,34 @@
 @media(max-width:1180px){.rental-calendar-layout{grid-template-columns:minmax(0,1fr)}.calendar-reservations>div:first-of-type{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.collection-card .operation-amounts{grid-template-columns:repeat(3,minmax(0,1fr))}.collection-card .operation-amounts>div{border-bottom:1px solid #e8edf3}}
 @media(max-width:760px){.operations-app .quote-index-table td:nth-child(2){width:auto;grid-column:1/-1}.case-overview{grid-template-columns:minmax(0,1fr)}.case-overview>.vehicle-media{max-width:400px;width:100%}.operation-amounts,.collection-card .operation-amounts,.budget-operation-money .operation-amounts{grid-template-columns:repeat(2,minmax(0,1fr))}.operation-amounts>div{border-bottom:1px solid #e8edf3}.collection-metrics{gap:10px}.collection-metrics article{padding:16px}.collection-metrics strong{font-size:24px}.collection-card>header{padding:20px;flex-wrap:wrap}.collection-card>header>.badge{margin-left:0}.collection-identity{flex:1 1 150px}.collection-actions{padding:16px 20px}.collection-case-link{margin-left:0}.budget-paper-heading .budget-client-vehicle{flex-wrap:wrap}.collection-toolbar{flex-wrap:wrap}.collection-toolbar .search-field{flex:1 1 230px;width:auto}.collection-toolbar select{flex:1 1 100px}}
 @media(max-width:480px){.collection-metrics{grid-template-columns:minmax(0,1fr)}.collection-metrics article{padding:16px 18px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}.collection-metrics strong{font-size:23px;margin-top:0;grid-column:2;grid-row:1/3;align-self:center}.collection-metrics small{margin-top:0}.collection-card>header{gap:12px;padding:18px 16px}.collection-card>header>.vehicle-media{width:68px;flex-basis:68px;height:54px}.collection-identity{flex-basis:calc(100% - 80px)}.collection-identity h2{font-size:16px}.operation-amounts>div{padding:15px 16px}.operation-amounts dd{font-size:17px}.operation-amounts .amount-outstanding{grid-column:1/-1}.collection-actions{padding:16px}.collection-form{padding:18px 16px}.collection-breakdown{padding:16px}.case-overview .detail-list{grid-template-columns:minmax(0,1fr)}.budget-document-brand{gap:12px}.budget-document-brand>div:last-child{max-width:60%}.document-logo{font-size:25px;gap:7px}.document-logo span{font-size:8px;max-width:43px}.budget-document-brand strong{font-size:13px}.budget-operation-money{padding:15px}.budget-operation-money .operation-amounts>div{padding:12px 5px}.budget-operation-money .operation-amounts dd{font-size:14px}.month-calendar>header{padding:18px 16px}.month-calendar h2{font-size:21px}.calendar-day{padding:6px 2px;min-height:79px}.calendar-day-number{width:23px;height:23px;font-size:10px}.calendar-event span{display:none}.operations-app .calendar-event{padding:4px 3px;min-height:40px;font-size:9px}.calendar-event strong{font-size:8px}.calendar-reservations>div:first-of-type{grid-template-columns:minmax(0,1fr)}.calendar-legend{padding:15px 12px;gap:10px;font-size:10px}}
+
+/* Rental lifecycle: the current operation and its money stay ahead of history. */
+.vehicle-review-notes{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.vehicle-review-notes p+p{margin-top:8px}
+.customer-documents{min-width:0}.customer-documents input[type=file]{width:100%;min-width:0;max-width:100%;font-size:12px}.customer-documents button{max-width:100%;white-space:normal;height:auto;min-height:44px}.customer-document-preview{display:block;max-width:100%;max-height:420px;object-fit:contain;border:1px solid #dfe5ed;border-radius:7px}
+.vehicle-rentals{display:grid;gap:18px;min-width:0;margin-bottom:22px}
+.rental-operation{padding:24px;min-width:0;border-top:3px solid #537aa0!important}
+.rental-operation>header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.rental-operation h2{font-size:19px;font-weight:750;color:#293e58;line-height:1.5;margin-top:5px;overflow-wrap:anywhere}
+.rental-operation>header>a{display:inline-flex;align-items:center;gap:5px;font-size:12px;min-height:44px}
+.rental-progress{min-width:0;margin:18px 0}.rental-progress>.badge{font-size:12px;padding:7px 10px}
+.rental-progress ol{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));list-style:none;margin:20px 0 12px;padding:0;gap:8px}
+.rental-progress li{display:flex;align-items:center;gap:9px;min-width:0;padding:12px 10px;border:1px solid #dfe5ed;border-radius:7px;color:#68788d;background:#fafbfd;font-size:12px;line-height:1.5}
+.rental-progress li>span{display:grid;place-items:center;flex:0 0 25px;width:25px;height:25px;border-radius:50%;border:1px solid #d7dfe9;background:#fff;font-size:11px}
+.rental-progress li>strong{font-weight:600;overflow-wrap:anywhere}.rental-progress li.current{background:#edf4fc;border-color:#6f92b7;color:#284c73}
+.rental-progress li.current>span{background:#3f6890;color:#fff;border-color:#3f6890}.rental-progress li.complete{color:#2f705c;background:#f3faf7;border-color:#cedfd7}
+.rental-progress p,.rental-action-note,.rental-advance{font-size:12px;line-height:1.8;color:#586d85;overflow-wrap:anywhere}
+.rental-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;margin:18px 0 0;min-width:0}
+.rental-dates>div{min-width:0}.rental-dates dt{font-size:12px;color:#647184;margin-bottom:5px}.rental-dates dd{margin:0;font-size:14px;color:#304b69;font-weight:650;line-height:1.7;overflow-wrap:anywhere}
+.rental-timezone{font-size:11px;color:#647184;margin:8px 0 18px}
+.rental-money{grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #e3e8ef;border-radius:8px;background:#fafbfd;margin-top:20px}
+.rental-advance{padding:12px 0 0}.rental-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px;min-width:0}
+.rental-actions button,.rental-actions a{min-height:44px;max-width:100%;height:auto;white-space:normal;overflow-wrap:anywhere;text-align:left}
+.rental-actions>.bg-primary{color:#fff}
+.rental-actions>.text-link{font-size:12px;color:#365f85;font-weight:650;display:inline-flex;align-items:center}.rental-actions>.text-link:hover{text-decoration:underline}
+.rental-action-note{display:flex;align-items:flex-start;gap:8px;margin-top:14px}.rental-action-note svg{flex-shrink:0;margin-top:3px}
+.rental-record-list{padding:20px 24px;min-width:0}.rental-record-list>h2,.rental-record-list>summary{font-weight:700;font-size:14px;color:#334e6b}
+.rental-record-list>summary{cursor:pointer;min-height:32px}.rental-record{padding:18px 0;border-top:1px solid #e4eaf1;min-width:0;margin-top:14px}
+.rental-record-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.rental-record h3{font-size:14px;font-weight:650;overflow-wrap:anywhere;color:#344d68}
+.rental-record .rental-dates{margin-top:12px}.rental-record .text-link{display:inline-flex;align-items:center;min-height:44px;font-size:12px;color:#365f85;margin-top:10px;font-weight:650}
+@media(max-width:760px){.rental-progress ol{grid-template-columns:repeat(2,minmax(0,1fr))}.rental-operation{padding:20px}.rental-money{grid-template-columns:repeat(3,minmax(0,1fr))}.rental-money>div{padding:14px 12px}.rental-money dd{font-size:17px}}
+@media(max-width:480px){.rental-operation{padding:18px 16px}.rental-operation h2{font-size:17px}.rental-progress li{padding:10px 8px;gap:6px;font-size:11px}.rental-dates{grid-template-columns:minmax(0,1fr);gap:12px}.rental-money{grid-template-columns:repeat(2,minmax(0,1fr))}.rental-money .amount-outstanding{grid-column:1/-1}.rental-money>div{padding:14px}.rental-actions{align-items:stretch}.rental-actions>button,.rental-actions>a{width:100%;justify-content:center}.rental-record-list{padding:18px 16px}}

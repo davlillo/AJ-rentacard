@@ -5,6 +5,8 @@ import {useBusiness} from '@/hooks/use-business';
 import {loadRentalInspections,rentalRpc,type RentalInspection,type RentalExtra,type Reservation} from '@/lib/supabase/reservations';
 import {money} from '@/controladores/finanzas';
 import {AdaptiveTable} from './adaptive-table';
+import {rentalDateTime} from '@/controladores/rental-workflow';
+import {VehicleReviewField,VehicleReviewNotes} from './vehicle-review';
 
 export function RentalInspectionReview({booking,onChange}:{booking:Reservation;onChange:()=>Promise<void>}){
   const {can}=useBusiness();const [inspections,setInspections]=useState<RentalInspection[]>([]);const [extras,setExtras]=useState<RentalExtra[]>([]);
@@ -17,19 +19,18 @@ export function RentalInspectionReview({booking,onChange}:{booking:Reservation;o
     try{await rentalRpc('execute_rental_command',{command,payload,idempotency_key:attempt.current.key});await reload();await onChange();}
     catch(error){setError((error as Error).message);}finally{sending.current=false;setBusy(false);}
   }
-  return <section className="mt-6"><h3 className="font-semibold">Inspección de salida y devolución</h3>
-    <p className="field-hint">Una diferencia genera una propuesta, no un cargo ni un cobro automático. La devolución mantiene el vehículo bloqueado hasta revisar limpieza.</p>
-    <div className="table-scroll mt-3"><AdaptiveTable><thead><tr><th>Inspección</th><th>KM / combustible</th><th>Condición / accesorios</th></tr></thead>
-      <tbody>{inspections.map(inspection=><tr key={inspection.id}><td>{inspection.kind}<small>{inspection.occurred_at}</small></td>
-        <td>{inspection.km} km · {inspection.fuel}%</td><td>{inspection.condition}<small>{inspection.accessories}</small><small>{inspection.evidence}</small></td></tr>)}</tbody></AdaptiveTable></div>
-    {booking.status==='Confirmada'&&['Preparado','Entregado'].includes(booking.rental_state)&&<form className="operation-form" onSubmit={event=>{
+  return <section className="mt-6"><h3 className="font-semibold">{booking.rental_state==='Entregado'?'Registrar devolución del vehículo':booking.rental_state==='Preparado'?'Entrega del vehículo al cliente':'Inspecciones registradas'}</h3>
+    <p className="field-hint">{booking.rental_state==='Entregado'?'Complete la inspección para terminar el uso del vehículo. Después se revisa la limpieza; el saldo pendiente se conserva.':'La entrega inicia el alquiler. La devolución termina su uso, pero no registra un cobro.'}</p>
+    <div className="table-scroll mt-3"><AdaptiveTable><thead><tr><th>Inspección</th><th>Revisión general</th></tr></thead>
+      <tbody>{inspections.map(inspection=><tr key={inspection.id}><td>{inspection.kind==='Retorno'?'Devolución':'Entrega al cliente'}<small>{rentalDateTime(inspection.occurred_at)}</small></td>
+        <td><VehicleReviewNotes {...inspection}/></td></tr>)}</tbody></AdaptiveTable></div>
+    {booking.status==='Borrador'&&<p className="inline-note mt-4">Confirme primero la reserva en Resumen para habilitar la entrega.</p>}
+    {booking.status==='Confirmada'&&booking.rental_state==='Preparado'&&<p className="inline-note mt-4">Entrega prevista: {rentalDateTime(booking.starts_at)} (El Salvador). Solo se permite entregar dentro del período reservado y con el vehículo listo.</p>}
+    {can('orders.write')&&booking.status==='Confirmada'&&['Preparado','Entregado'].includes(booking.rental_state)&&<form className="operation-form" onSubmit={event=>{
       event.preventDefault();const f=new FormData(event.currentTarget);void submit(booking.rental_state==='Preparado'?'depart':'return',{
-        reservationId:booking.id,expectedVersion:booking.version,...Object.fromEntries(['km','fuel','condition','accessories','evidence'].map(key=>[key,String(f.get(key))]))});
-    }}><div className="form-grid"><label className="form-field"><span>Kilometraje de inspección</span><input name="km" type="number" min="0" required/></label>
-      <label className="form-field"><span>Combustible de inspección (%)</span><input name="fuel" type="number" min="0" max="100" step="0.01" required/></label></div>
-      <label className="form-field"><span>Condición observada</span><textarea name="condition" required/></label>
-      <label className="form-field"><span>Accesorios observados</span><input name="accessories" required/></label>
-      <label className="form-field"><span>Evidencia de inspección</span><textarea name="evidence" required/></label>
+        reservationId:booking.id,expectedVersion:booking.version,km:null,fuel:null,
+        condition:String(f.get('review')).trim(),accessories:'',evidence:String(f.get('review')).trim()});
+    }}><VehicleReviewField/>
       <Button type="submit" disabled={busy}>{booking.rental_state==='Preparado'?'Registrar salida de alquiler':'Registrar devolución de alquiler'}</Button>
     </form>}
     {extras.map(extra=><article key={extra.id} className="inline-note mt-4"><strong>{extra.description} · {extra.status}</strong>

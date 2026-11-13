@@ -13,14 +13,14 @@ import {MoneyOperationSelect} from './money-operation-select';
 import styles from './money-workspace.module.css';
 
 interface ReceiptProps {
-  customerId?:string;orderId?:string;reservationId?:string;paymentId?:string;
+  customerId?:string;orderId?:string;reservationId?:string;paymentId?:string;documentId?:string;initialAmount?:number;
   onChange:()=>Promise<void>;onSaved?:()=>void;onBusyChange?:(busy:boolean)=>void;revision?:string;
 }
-export function ReceiptForm({customerId:initialCustomer,orderId,reservationId,paymentId:initialPayment,onChange,onSaved,onBusyChange,revision}:ReceiptProps){
+export function ReceiptForm({customerId:initialCustomer,orderId,reservationId,paymentId:initialPayment,documentId,initialAmount,onChange,onSaved,onBusyChange,revision}:ReceiptProps){
   const {data,refresh}=useBusiness();
   const [customerId,setCustomerId]=useState(initialCustomer??'');
   const [operation,setOperation]=useState(orderId?'order:'+orderId:reservationId?'reservation:'+reservationId:'');
-  const [paymentId,setPaymentId]=useState(initialPayment??'');const [target,setTarget]=useState('choose');const [amount,setAmount]=useState('');
+  const [paymentId,setPaymentId]=useState(initialPayment??'');const [target,setTarget]=useState(documentId??'choose');const [amount,setAmount]=useState(initialAmount?.toFixed(2)??'');
   const [records,setRecords]=useState<{documents:Receivable[];payments:CustomerPayment[];applications:PaymentApplication[];refunds:PaymentRefund[]}>();
   const [loadError,setLoadError]=useState('');const [loading,setLoading]=useState(true);
   const {busy,error,execute}=useCaseAction(async()=>{await refresh();await onChange();});
@@ -65,7 +65,7 @@ export function ReceiptForm({customerId:initialCustomer,orderId,reservationId,pa
         <option value="choose" disabled>Seleccionar cargo o guardar como anticipo</option>
         {!paymentId&&<option value="advance">Anticipo — todavía sin aplicar a un cargo</option>}
         {documents.map(d=><option key={d.id} value={d.id}>{folio('CAR',d.folio_number)} · {d.description} · saldo {money(d.balance)}</option>)}</select></label>
-      {!documents.length&&customerId&&<p className="inline-note">No hay cargos individuales con saldo en esta vista. Puede registrar un anticipo sin inventar deuda.
+      {!loading&&!loadError&&!documents.length&&customerId&&<p className="inline-note">No hay cargos individuales con saldo en esta vista. Puede registrar un anticipo sin inventar deuda.
         Los documentos agrupados se gestionan en Cargos y cobros → Importaciones, documentos agrupados y otros ajustes.</p>}
       {target==='advance'&&<p className={styles.receiptNotice}>El dinero queda recibido y disponible para aplicar después. No se marca el trabajo como pagado ni se crea un cargo.</p>}
       {!!paymentId&&<p className={styles.receiptNotice}>Este recibo ya está en caja. La aplicación no volverá a sumar dinero al diario.</p>}
@@ -76,7 +76,7 @@ export function ReceiptForm({customerId:initialCustomer,orderId,reservationId,pa
         <label className="form-field"><span>Cuenta o caja receptora</span><input name="account" required/></label></div>
         <label className="form-field"><span>Referencia del pago</span><input name="reference" required/></label></>}
       {error&&<p role="alert" className="form-error">{error}</p>}
-      <Button type="submit" disabled={!customerId||target==='choose'||(!!paymentId&&!document)}>{busy?'Guardando…':paymentId?'Aplicar recibo sin nuevo ingreso':target==='advance'?'Guardar anticipo vinculado':'Guardar cobro y aplicar al cargo'}</Button>
+      <Button type="submit" disabled={!customerId||target==='choose'||(target!=='advance'&&!document)}>{busy?'Guardando…':paymentId?'Aplicar recibo sin nuevo ingreso':target==='advance'?'Guardar anticipo vinculado':'Guardar cobro y aplicar al cargo'}</Button>
     </fieldset></form>
   </section>;
 }
