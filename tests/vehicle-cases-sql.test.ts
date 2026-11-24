@@ -102,6 +102,7 @@ test('Vehicle case migration rollback only when unused; reapply preserves prior 
   try{
     const rollback=readFileSync('supabase/rollback/20261030000100_vehicle_case_files.sql','utf8');
     await db.exec('reset role');
+    await db.exec(readFileSync('supabase/rollback/20261101000100_fleet_operational_availability.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261031000400_unknown_vehicle_registration.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261031000300_registry_alias_integrity.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261031000200_complete_verified_details.sql','utf8'));

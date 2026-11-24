@@ -2,14 +2,20 @@ import {PDFDocument,rgb} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type {QuoteVersion} from '@/lib/supabase/estimates';
 import {folio} from '@/controladores/folios';
+import {drawQuotePdf,type PrintedQuote} from './quote-layout';
 
-export interface DocumentContent {title:string;reference:string;createdAt:string;sections:{heading:string;lines:string[]}[];}
+export interface DocumentContent {title:string;reference:string;createdAt:string;sections:{heading:string;lines:string[]}[];quote?:PrintedQuote;}
 const dollars=(value:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
 
 export function quoteDocumentContent(quote:QuoteVersion):DocumentContent{
   // Whitelist client-visible values: never serialize the internal calculation or cost fields.
   return{title:'Presupuesto de servicio',reference:`${folio('PRE',quote.folio_number)} · Versión ${quote.revision}`,
-    createdAt:quote.created_at,sections:[
+    createdAt:quote.created_at,quote:{customer:quote.customer_snapshot.name,document:quote.customer_snapshot.document,
+      vehicle:`${quote.vehicle_snapshot.brand} ${quote.vehicle_snapshot.model} ${quote.vehicle_snapshot.year??''}`.trim(),
+      plate:quote.vehicle_snapshot.plate||'Placa sin registrar',status:quote.status,
+      lines:quote.snapshot.lines.map(l=>({description:l.description,quantity:l.quantity,
+        unitPrice:Number(l.unitPrice??l.price/l.quantity),amount:l.price})),
+      subtotal:quote.snapshot.subtotal,discount:quote.snapshot.discount,total:quote.snapshot.total},sections:[
       {heading:'Cliente y vehículo',lines:[quote.customer_snapshot.name,
         `Documento: ${quote.customer_snapshot.document||'Sin registrar'}`,
         `Vehículo: ${quote.vehicle_snapshot.brand} ${quote.vehicle_snapshot.model} ${quote.vehicle_snapshot.year} - ${quote.vehicle_snapshot.plate||'Placa sin registrar'}`,
@@ -26,13 +32,15 @@ export async function createBusinessPdf(content:DocumentContent,fontBytes:Uint8A
   const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit);
   const font=await pdf.embedFont(fontBytes,{subset:true});
   const characters=new Set(font.getCharacterSet());
-  for(const text of [content.title,content.reference,...content.sections.flatMap(section=>[section.heading,...section.lines])]){
+  for(const text of [content.title,content.reference,...content.sections.flatMap(section=>[section.heading,...section.lines]),
+    ...(content.quote?[content.quote.customer,content.quote.document,content.quote.vehicle,content.quote.plate,content.quote.status,...content.quote.lines.map(l=>l.description)]:[])]){
     if([...text].some(char=>!['\n','\r','\t'].includes(char)&&!characters.has(char.codePointAt(0)!))){
       throw new Error('La fuente del documento no admite un carácter del contenido. No se alteraron los datos originales.');
     }
   }
   pdf.setTitle(content.title);pdf.setAuthor('AJ Rent a Car');pdf.setLanguage('es-SV');
   pdf.setCreationDate(new Date(content.createdAt));pdf.setModificationDate(new Date(content.createdAt));
+  if(content.quote){drawQuotePdf(pdf,font,content.quote,content.reference,content.createdAt);return pdf.save();}
   let page=pdf.addPage([612,792]);let y=0;
   function header(){
     page.drawRectangle({x:0,y:780,width:612,height:12,color:rgb(.9,.16,.25)});

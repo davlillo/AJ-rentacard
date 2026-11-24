@@ -16,10 +16,19 @@ test('HU08 client PDF uses only frozen customer/prices, never internal costs, an
   assert.ok(!JSON.stringify(content).includes('test-version'));
   assert.ok(!JSON.stringify(content).includes('9999'));
   assert.ok(JSON.stringify(content).includes('José Pérez'));
-  const bytes=await createBusinessPdf({...content,sections:[...content.sections,
-    {heading:'Scope continued',lines:Array.from({length:100},(_,index)=>`Line ${index+1}: `+'Detail '.repeat(30))}]},
+  const bytes=await createBusinessPdf({...content,quote:{...content.quote!,lines:Array.from({length:60},(_,index)=>({
+    ...content.quote!.lines[0],description:`Service ${index+1}: `+'Detail '.repeat(12)}))}},
     readFileSync('public/fonts/manrope-latin-regular.woff'));
   assert.equal(Buffer.from(bytes.subarray(0,5)).toString(),'%PDF-');
   const pdf=await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount()>1);assert.equal(pdf.getTitle(),'Presupuesto de servicio');
+});
+
+test('A 27-line quote keeps its totals on the second page instead of an almost-empty third sheet',async()=>{
+  const bytes=await createBusinessPdf({title:'Presupuesto de servicio',reference:'PRE-00002 · Versión 1',
+    createdAt:'2026-10-30T12:00:00Z',sections:[],quote:{customer:'Rafael Vargas',document:'',vehicle:'Nissan Rogue 2018',
+      plate:'Placa sin registrar',status:'Borrador',subtotal:2190,discount:0,total:2190,
+      lines:Array.from({length:27},(_,index)=>({description:`Service item ${index+1}`,quantity:1,unitPrice:10,amount:10}))}},
+    readFileSync('public/fonts/manrope-latin-regular.woff'));
+  assert.equal((await PDFDocument.load(bytes)).getPageCount(),2);
 });

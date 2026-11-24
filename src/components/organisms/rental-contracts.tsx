@@ -4,8 +4,13 @@ import {Button} from '@/components/ui/button';
 import {contractCommand,loadContracts,storedContractPdf,type RentalContract,type ContractAcceptance} from '@/lib/supabase/management';
 import type {Reservation} from '@/lib/supabase/reservations';
 import {money} from '@/controladores/finanzas';
+import styles from './rental-contracts.module.css';
 
-export function RentalContracts({booking}:{booking:Reservation}){
+// Optional, collapsed block: it holds the agreed conditions and their acceptance.
+// Saving a version or registering an acceptance never issues money nor delivers the vehicle.
+export function RentalContracts({booking,open=false,summary='Contratos versionados y aceptación',hint}:{
+  booking:Reservation;open?:boolean;summary?:string;hint?:string;
+}){
   const [contracts,setContracts]=useState<RentalContract[]>([]);const [acceptances,setAcceptances]=useState<ContractAcceptance[]>([]);
   const [error,setError]=useState('');const [busy,setBusy]=useState(false);const sending=useRef(false);const attempt=useRef<{body:string;key:string}|null>(null);
   async function reload(){const result=await loadContracts(booking.id);setContracts(result.contracts);setAcceptances(result.acceptances);}
@@ -13,8 +18,9 @@ export function RentalContracts({booking}:{booking:Reservation}){
   async function run(action:()=>Promise<void>){if(sending.current)return;sending.current=true;setBusy(true);setError('');try{await action();}catch(error){setError((error as Error).message);}finally{sending.current=false;setBusy(false);}}
   async function submit(command:'version'|'accept',payload:Record<string,unknown>){const body=JSON.stringify({command,payload});
     if(attempt.current?.body!==body)attempt.current={body,key:crypto.randomUUID()};await contractCommand(command,payload,attempt.current.key);await reload();attempt.current=null;}
-  return <details className="mt-6"><summary>Contratos versionados y aceptación</summary>
-    <p className="field-hint">La versión congela partes, vehículo, intervalo, precio y condiciones. No se inventa una plantilla legal ni una firma.</p>
+  return <details className={styles.block} open={open}><summary>{summary}{hint&&<span className={styles.optionalHint}>{hint}</span>}</summary>
+    <p className="field-hint">Las condiciones acordadas con el cliente y su aceptación. Guardar una versión congela partes, vehículo, intervalo, precio y condiciones;
+      no se inventa una plantilla legal ni una firma. Guardar una versión o registrar una aceptación no cobra nada y no entrega el vehículo.</p>
     <form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);void run(async()=>{
       await submit('version',{reservationId:booking.id,parentId:contracts[0]?.id??null,conditions:String(f.get('conditions')),reason:String(f.get('reason'))});
     });}}><label className="form-field"><span>Condiciones completas del contrato</span><textarea name="conditions" required/></label>

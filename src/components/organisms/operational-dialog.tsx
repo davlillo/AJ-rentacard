@@ -5,6 +5,7 @@ import {Button} from '@/components/ui/button';
 import {useBusiness} from '@/hooks/use-business';
 import {customerMatches} from '@/controladores/clientes';
 import type {BusinessCommand} from '@/lib/supabase/business';
+import {WorkshopIntake} from './workshop-intake';
 
 const today = () => new Intl.DateTimeFormat('en-CA', {timeZone: 'America/El_Salvador'}).format(new Date());
 function Field({label, children}: {label: string; children: React.ReactElement<{'aria-labelledby'?: string}>}) {
@@ -13,13 +14,30 @@ function Field({label, children}: {label: string; children: React.ReactElement<{
 }
 
 export function OperationalDialog() {
-  const {data, modal, command, close, toast} = useBusiness();
+  const {modal}=useBusiness();
+  return modal.kind==='orden'?<WorkshopIntake/>:<OperationalRecordDialog/>;
+}
+
+export function CustomerRegistrationDialog({onSaved,onClose}:{
+  onSaved:(id:string)=>void;onClose:()=>void;
+}){
+  return <OperationalRecordDialog customerRegistration={{onSaved,onClose}}/>;
+}
+
+function OperationalRecordDialog({customerRegistration}:{
+  customerRegistration?:{onSaved:(id:string)=>void;onClose:()=>void};
+}) {
+  const business = useBusiness();
+  const {data, command, toast,can} = business;
+  const modal=customerRegistration?{kind:'cliente' as const,id:undefined}:business.modal;
+  const close=customerRegistration?.onClose??business.close;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [phone, setPhone] = useState('');
   const [document, setDocument] = useState('');
-  const [ownership, setOwnership] = useState('Por confirmar');
-  const [internalJob,setInternalJob]=useState(false);
+  const [ownership, setOwnership] = useState(modal.id==='client'?'Cliente':'Por confirmar');
+  const [internalJob,setInternalJob]=useState(!!data.vehicles.find(v=>v.id===modal.id)?.inRentalFleet);
+  const [newWorkshopVehicle,setNewWorkshopVehicle]=useState(false);
   const [destination, setDestination] = useState(modal.id?.startsWith('vehicle:')?'vehicle':
     modal.id?.startsWith('reservation:')?'reservation':modal.id ? 'operation' : 'center');
   const request = useRef<{body: string; key: string} | null>(null);
@@ -35,7 +53,7 @@ export function OperationalDialog() {
   </Field>;
 
   return <Dialog open onOpenChange={open => !open && !busy && close()}>
-    <DialogContent><DialogTitle className="text-2xl font-semibold">{titles[modal.kind!]}</DialogTitle>
+    <DialogContent closeDisabled={busy}><DialogTitle className="text-2xl font-semibold">{titles[modal.kind!]}</DialogTitle>
       <DialogDescription className="text-sm text-muted-foreground mt-1">
         {modal.kind==='orden'?'Registre la recepción del vehículo y complete después su inspección.':'Complete los datos conocidos. Los campos opcionales pueden quedar vacíos.'}
       </DialogDescription>
@@ -53,15 +71,17 @@ export function OperationalDialog() {
           name = 'create_vehicle';
           payload = {plate: text('plate'), vin: text('vin'), brand: text('brand'), model: text('model'),
             year: Number(text('year')), category: text('category'), color: text('color'),
-            daily: Number(text('daily')), km: Number(text('km')), ownership,initialStatus:'Por confirmar',
+            daily: Number(text('daily')), km: Number(text('km')), ownership,initialStatus:fields.has('inRentalFleet')?'Disponible':'Por confirmar',
             unverifiedFields:[...['plate','color','daily','km'].filter(field=>!text(field)),
-              ...(ownership==='Por confirmar'?['ownership']:[]),'status'],
+              ...(ownership==='Por confirmar'?['ownership']:[]),...(fields.has('inRentalFleet')?[]:['status'])],
             ownerCustomerId: ownership === 'Cliente' ? text('ownerCustomerId') : null,
             inRentalFleet:fields.has('inRentalFleet'),registeredHolder:text('registeredHolder'),commercialLine:text('commercialLine')};
         } else if (modal.kind === 'orden') {
-          name = 'receive_vehicle';
+          name = internalJob?'receive_vehicle':'receive_workshop_vehicle';
           payload = {customerId: internalJob?null:text('customerId'),internalJob, vehicleId: text('vehicleId'), service: text('service'),
-            area: text('area'), due: text('due') || null};
+            area: text('area'), due: text('due') || null,expectedVersion:data.vehicles.find(v=>v.id===text('vehicleId'))?.version};
+          if(!internalJob&&newWorkshopVehicle)payload={...payload,vehicleId:null,newVehicle:{plate:text('plate'),brand:text('brand'),
+            model:text('model'),year:text('year'),color:text('color'),category:text('category')}};
         } else {
           name = 'record_expense';
           payload = {concept: text('concept'), category: text('category'), amount: text('amount'),
@@ -76,8 +96,9 @@ export function OperationalDialog() {
         if (request.current?.body !== body) request.current = {body, key: crypto.randomUUID()};
         sending.current = true; setBusy(true); setError('');
         try {
-          await command(name, payload, request.current.key);
-          toast('Registro guardado.'); close();
+          const result=await command(name, payload, request.current.key);
+          toast('Registro guardado.');
+          if(customerRegistration)customerRegistration.onSaved(result.id);else close();
         } catch (error) {setError((error as Error).message);}
         finally {sending.current = false; setBusy(false);}
       }}>
@@ -111,7 +132,7 @@ export function OperationalDialog() {
               <option>Pickup</option><option>Compacto</option></select></Field>
             <Field label="Color (opcional)"><input name="color"/></Field>
             <Field label="Tarifa diaria de renta (opcional)"><input name="daily" type="number" min={0} step="0.01"/></Field>
-            <p className="field-hint">Kilometraje, tarifa y estado quedan pendientes hasta verificarlos. Registrar el vehículo no significa recibirlo ni declararlo disponible.</p>
+            <p className="field-hint">Kilometraje y tarifa pueden completarse después. Un vehículo nuevo incluido en flota inicia disponible; su ingreso o salida se registra por separado.</p>
             <Field label="Relación"><select value={ownership} onChange={event => setOwnership(event.target.value)}>
               <option>Propio</option><option>Cliente</option><option>Por confirmar</option></select></Field>
             {ownership === 'Cliente' && customerSelect('ownerCustomerId')}
@@ -121,19 +142,28 @@ export function OperationalDialog() {
           </>}
           {modal.kind === 'orden' && <>
             <label className="inline-note"><input type="checkbox" checked={internalJob} onChange={e=>setInternalJob(e.target.checked)}/>
-              Mantenimiento interno de flota (sin venta al negocio)</label>
+              Mantenimiento interno de flota (sin cobro a un cliente)</label>
             {!internalJob&&customerSelect('customerId')}
-            <Field label="Vehículo"><select key={String(internalJob)} required name="vehicleId" defaultValue={modal.id??''}>
-              <option value="" disabled>Seleccionar vehículo disponible</option>
-              {data.vehicles.filter(vehicle => vehicle.status === 'Disponible'&&(!internalJob||vehicle.inRentalFleet)&&
+            {!internalJob&&<Field label="Vehículo del cliente"><select value={newWorkshopVehicle?'new':'existing'} onChange={e=>setNewWorkshopVehicle(e.target.value==='new')}>
+              <option value="existing">Seleccionar un vehículo registrado</option><option value="new" disabled={!can('vehicles.write')}>Registrar un vehículo nuevo en esta entrada</option></select></Field>}
+            {!internalJob&&newWorkshopVehicle?<><p className="inline-note">Este vehículo se registra para el cliente del taller. No se agrega a la flota de alquiler.</p>
+              <Field label="Placa (si se conoce)"><input name="plate" maxLength={30}/></Field>
+              <div className="form-grid"><Field label="Marca"><input name="brand" required maxLength={100}/></Field><Field label="Modelo"><input name="model" required maxLength={100}/></Field></div>
+              <div className="form-grid"><Field label="Año"><input name="year" type="number" min={1900} max={2100} required/></Field>
+                <Field label="Categoría"><select name="category"><option>Sedán</option><option>SUV</option><option>Pickup</option><option>Compacto</option></select></Field></div>
+              <Field label="Color (opcional)"><input name="color" maxLength={100}/></Field>
+            </>:<Field label={internalJob?'Vehículo de la flota':'Vehículo registrado del taller'}><select key={String(internalJob)} required name="vehicleId" defaultValue={modal.id??''}>
+              <option value="" disabled>Seleccionar vehículo</option>
+              {data.vehicles.filter(vehicle => (internalJob?vehicle.status==='Disponible'&&vehicle.inRentalFleet:
+                !vehicle.inRentalFleet&&vehicle.ownership!=='Propio'&&['Disponible','Por confirmar'].includes(vehicle.status))&&
                 !data.orders.some(order=>order.vehicleId===vehicle.id&&order.status!=='Entregado')).map(vehicle =>
-                <option key={vehicle.id} value={vehicle.id}>{vehicle.plate} · {vehicle.brand} {vehicle.model}</option>)}
-            </select></Field>
+                <option key={vehicle.id} value={vehicle.id}>{vehicle.plate||'Sin placa'} · {vehicle.brand} {vehicle.model}</option>)}
+            </select></Field>}
             <Field label="Motivo del ingreso"><textarea name="service" required maxLength={2000}/></Field>
             <Field label="Área"><select name="area"><option>Mecánica</option><option>Pintura</option></select></Field>
             <Field label="Fecha objetivo (opcional)"><input name="due" type="date"/></Field>
             <p className="inline-note">Si el vehículo ya tiene un presupuesto, complete su recepción en el expediente del trabajo.
-              Los vehículos sin estado confirmado se revisan primero en su ficha.</p>
+              La revisión general se completa en Recepción. Los carros de clientes no necesitan una tarifa de alquiler.</p>
           </>}
           {modal.kind === 'gasto' && <>
             <Field label="Concepto"><input name="concept" required maxLength={2000}/></Field>

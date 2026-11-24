@@ -8,19 +8,27 @@ Los cuatro Excel privados se consultan como datos organizados y paginados en **A
 
 Se conservan sesión y permisos/RLS, expedientes por vehículo y operación, fotos privadas, versiones y aprobación de presupuestos, alquileres abiertos, cobros y aplicaciones, importación conciliada de gastos/pagos y diario sin duplicar caja. Los módulos secundarios siguen disponibles por sus rutas autorizadas; no se eliminaron sus datos ni sus API. Detalles y límites: [`docs/OPERATIONAL_FIT.md`](docs/OPERATIONAL_FIT.md).
 
-**La limpieza autorizada ya se aplicó tras un respaldo completo y un ensayo con rollback.** Se preservaron usuarios, roles, configuración, auditoría y originales. La base contiene **16 clientes, 27 vehículos de flota y un Nissan Rogue 2018 sin placa verificada**, más el presupuesto de Rafael Vargas de **27 partidas por $2.190**. Propiedad, disponibilidad, kilometraje y tarifas no confirmados se muestran como pendientes; pueden completarse con evidencia en la ficha. Los importes históricos de abonos/saldos no se publicaron como caja ni deuda. De las 557 observaciones originales, 54 están vinculadas y 503 pendientes; ninguna se publicó como movimiento financiero.
+**Los registros operativos anteriores se reemplazaron por la nueva carga autorizada**, con respaldo completo verificado y ensayo con rollback. La base habitual contiene **7 clientes y 7 vehículos**: 5 de flota (**3 disponibles, 1 alquilado y 1 reservado**) y 2 de clientes en taller. Incluye cinco alquileres devueltos, tres folios internos entregados, dos trabajos abiertos, presupuestos versionados y dinero conectado. Se conservaron los 34 usuarios, roles, configuración, auditoría anterior y los cuatro Excel originales. Los 54 vínculos de los originales al conjunto retirado quedaron excluidos, sin referencias a registros borrados. Detalles: [`docs/LOCAL_WORKSPACE.md`](docs/LOCAL_WORKSPACE.md).
 
 - Estado por historia y evidencia: [`docs/ESTADO_HU.md`](docs/ESTADO_HU.md).
 - Entorno, credenciales locales y validación: [`docs/LOCAL_SUPABASE.md`](docs/LOCAL_SUPABASE.md).
 - `npm test` ejecuta también el SQL y las políticas RLS con PostgreSQL embebido (PGlite); no sustituye las pruebas HTTP/Auth/concurrencia de Supabase.
-- `node scripts/verify-real-workspace.mjs` verifica las nuevas RPC y sus vínculos en PostgreSQL local con rollback, sin dejar registros de prueba.
-- `node scripts/verify-real-api.mjs` comprueba Auth, permisos/endpoints y descarga idéntica de los cuatro originales sin publicar movimientos.
-- `.venv\Scripts\python.exe -B tests/browser/usability_acceptance.py` revisa los ocho módulos, originales, paginación y desbordamiento de página/contenedores a 320/390/768/1440 px sin crear registros de negocio.
+- `npm run local:replace -- verify` comprueba la carga actual, sus saldos y los hashes protegidos sin volver a borrar o cargar registros.
+- `.venv\Scripts\python.exe -X utf8 -B tests/browser/local_workspace_acceptance.py` revisa los ocho módulos, filtros, Gantt, siete expedientes, cinco folios y descargas en 320/390/768/1440 px sin crear movimientos.
+- Los verificadores anteriores ligados al inventario importado desde Excel describen el conjunto retirado, no esta nueva carga.
 - Las suites antiguas `test:local`, `test:roles`, `acceptance.py`, `rentals_acceptance.py` y `operational_fit_acceptance.py` generan fixtures: no ejecutarlas contra esta base limpia.
 
 El bloqueo de disco fue resuelto. Supabase AJ funciona en los puertos 55321/55322; las pruebas HTTP/Auth/RLS y de concurrencia pasan contra esa instancia. `.env.local` contiene las credenciales del propietario local, sin claves privadas en el bundle. Studio y Storage no se inician por defecto. **Advertencia:** Docker Desktop publica los puertos en todas las interfaces pese a la opción de red local; usá únicamente una red de confianza y no expongas este entorno de desarrollo públicamente.
 
 Para probar la versión operativa: `npm run local:start`, `npm run local:migrate`, `npm run local:setup` y `npx next dev --hostname 127.0.0.1 --port 3030`. Abrí http://127.0.0.1:3030. La guía de importación está en [`docs/IMPORTACIONES.md`](docs/IMPORTACIONES.md).
+
+## Entorno separado anterior
+
+La base independiente `aj_showcase` y sus herramientas se conservan como referencia técnica. **La carga actual está en `postgres`, la base habitual del sistema**, con la conexión existente de `.env.local` y acceso por **http://127.0.0.1:3030**. No necesita `showcase:dev` ni el acceso anterior de `3040`.
+
+Calendario incluye un **Gantt debajo del mensual**, con navegación compartida y vista semanal en celular. Las operaciones se guardan en la base habitual; recargar no restaura la carga inicial.
+
+La documentación histórica del entorno separado está en [`docs/SHOWCASE.md`](docs/SHOWCASE.md). Sus hashes anteriores ya no corresponden al conjunto operativo reemplazado por autorización. Tampoco debe confundirse con el prototipo en localStorage descrito a continuación.
 
 ## Referencia del prototipo demo
 

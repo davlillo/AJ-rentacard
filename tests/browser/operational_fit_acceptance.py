@@ -96,8 +96,8 @@ def main() -> None:
             page.get_by_label("Precio unitario USD · 1", exact=True).fill(price)
             page.get_by_label("Motivo y alcance de esta versión", exact=True).fill(f"Reviewed complete scope V{revision}")
             quote = save("execute_case_command", "quote", f"Guardar versión {revision} sin modificar anteriores")
-            page.get_by_label("Persona que decide el alcance", exact=True).fill("Synthetic customer")
-            page.get_by_label("Evidencia de aceptación o rechazo", exact=True).fill("Written approval for complete scope")
+            page.get_by_label("Quién autoriza", exact=True).fill("Synthetic customer")
+            page.get_by_label("Acuerdo con el cliente (escrito o mensaje)", exact=True).fill("Written approval for complete scope")
             save("execute_estimate_command", "approve", "Registrar decisión con evidencia")
             return quote
 
@@ -129,7 +129,7 @@ def main() -> None:
 
             tab("Presupuestos")
             approve_quote("1856", 1)
-            tab("Cargos y abonos")
+            tab("Cobros")
             save("execute_case_command", "bill_scope", "Emitir solamente la diferencia pendiente")
             page.get_by_label("Abono USD", exact=True).fill("750")
             page.get_by_label("Cuenta o caja receptora", exact=True).fill(cash)
@@ -137,7 +137,7 @@ def main() -> None:
             save("execute_case_command", "collect", "Guardar un recibo y su aplicación")
             tab("Presupuestos")
             quote2 = approve_quote("2190", 2)
-            tab("Cargos y abonos")
+            tab("Cobros")
             save("execute_case_command", "bill_scope", "Emitir solamente la diferencia pendiente")
             tab("Resumen")
             expect(page.locator(".budget-totals")).to_contain_text("$1,440.00")
@@ -210,7 +210,9 @@ def main() -> None:
             page.goto(ROOT + "/vehiculos/alquiler/?id=" + booking["id"], wait_until="networkidle")
             save("execute_reservation_command", "confirm", "Confirmar reserva del pliego")
             expect(page.get_by_text("Sin total final acordado; documentar por períodos", exact=True)).to_be_visible()
-            tab("Períodos y abonos")
+            tab("Resumen")
+            # The period form lives in the extension action of the active rental.
+            page.locator("summary").filter(has_text="Extender o acordar la fecha de devolución").click()
             page.locator("summary").filter(has_text="Documentar otro período de alquiler").click()
             for label in ("Período desde (inclusive)", "Período hasta (inclusive)"):
                 page.get_by_label(label, exact=True).fill(today)

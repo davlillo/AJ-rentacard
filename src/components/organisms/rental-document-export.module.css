@@ -1,0 +1,15 @@
+.panel { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.heading { display: grid; gap: 4px; }
+.heading strong { font-size: 14px; }
+.hint { font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions button { min-height: 36px; }
+.spinner { animation: spin 900ms linear infinite; }
+.error { font-size: 12px; line-height: 1.5; color: #b91c1c; border-left: 3px solid #d72439; padding-left: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+@media (max-width: 600px) {
+  .panel { padding: 14px; }
+  .actions { flex-direction: column; align-items: stretch; }
+  .actions button { width: 100%; }
+}

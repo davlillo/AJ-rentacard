@@ -1,0 +1,4 @@
+/* Optional, collapsed contract block: agreed conditions and their acceptance. */
+.block { margin-top: 18px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 14px; background: #fff; min-width: 0; }
+.block > summary { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; cursor: pointer; font-size: 15px; font-weight: 750; color: #293c55; }
+.optionalHint { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }

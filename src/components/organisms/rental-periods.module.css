@@ -1,0 +1,12 @@
+.dialog { max-width:34rem; }
+.body { display:flex; flex-direction:column; gap:16px; margin-top:16px; }
+.facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:12px 0 0; }
+.facts>div { min-width:0; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--muted); }
+.facts dt { font-size:.72rem; font-weight:600; color:var(--muted-foreground); }
+.facts dd { margin:4px 0 0; font-size:1rem; font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.dates { border:1px solid var(--border); border-radius:12px; padding:12px 14px; background:#fff; }
+.dates>summary { cursor:pointer; font-weight:650; font-size:.9rem; }
+@media(max-width:540px) {
+  .dialog { padding:20px 16px; }
+  .facts { grid-template-columns:1fr; }
+}

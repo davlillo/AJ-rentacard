@@ -1,0 +1,13 @@
+.layout {display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+.layout .reservations {min-width:0;border-color:#cbd7e6;background:#f6f8fc}
+.layout .reservations>header {background:#fff;border-radius:9px 9px 0 0;padding:18px 20px;border-bottom:1px solid #d3dfed}
+.layout .bookings {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px}
+.layout .bookings .booking {margin:0;border:1px solid #cbd8e9;border-left:3px solid #9cb5d8;border-radius:8px;background:#fff;padding:17px;min-width:0}
+.layout .bookings .booking:global(.selected) {background:#edf4ff;border-color:#7e9fcf;box-shadow:none;border-left-color:#3e72b8}
+.layout .booking :global(.calendar-booking-select) {gap:11px}
+.layout .booking :global(.calendar-booking-period) {font-size:12px;line-height:1.8;min-height:44px}
+.layout .booking :global(.calendar-booking-bottom) {padding-top:11px;border-top:1px solid #e1e8f1;gap:9px}
+.layout .booking :global(.calendar-booking-bottom) button {min-height:40px}
+.layout .reservations>:global(.record-pagination) {border-top:1px solid #d5dfeb;background:#fff;border-radius:0 0 9px 9px}
+@media(max-width:1150px) {.layout .bookings {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px) {.layout .bookings {grid-template-columns:minmax(0,1fr);padding:14px;gap:12px}.layout .bookings .booking {padding:16px}}

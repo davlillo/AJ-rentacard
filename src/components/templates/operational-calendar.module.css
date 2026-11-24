@@ -1,4 +1,8 @@
 .toolbar{display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin:20px 0}.toolbar label{min-width:0;flex:1 1 180px}.toolbar button{flex:0 1 auto}
+.toolbar{background:#eef3fa;border:1px solid #c5d3e5;border-radius:9px;padding:16px;box-shadow:0 2px 8px #243c5a05}
+.toolbar label>span{color:#344d69;font-weight:650}
+.toolbar input,.toolbar select{background:#fff;border:1px solid #b9c8da;color:#233c59}
+.toolbar input:focus-visible,.toolbar select:focus-visible{outline:2px solid #315d89;outline-offset:2px}
 .dates{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;padding:20px;border-bottom:1px solid #e2e7ed;background:#fafbfc;border-radius:9px 9px 0 0}
 .dates>div{text-align:center;min-width:0}.dates strong{display:block;font-size:12px;color:#455a75;text-transform:capitalize}.dates span{display:block;font-size:11px;color:#647184;margin-top:5px;white-space:normal}
 .row{display:grid;grid-template-columns:minmax(0,210px) minmax(0,1fr);gap:20px;padding:20px;border-bottom:1px solid #edf0f4;min-width:0}
@@ -8,4 +12,11 @@
 .bar:hover{filter:brightness(.98)}.bar span,.bar small{display:block;font-size:12px}
 .workshop{background:#fff5e8;border-color:#be7821;color:#794608}.cleaning{background:#edf7f2;border-color:#32976c;color:#155b40}
 .legend{padding:16px 20px;font-size:12px;color:#647184;line-height:1.7;border-top:1px solid #edf0f4}.records{margin-top:24px}.amount{font-variant-numeric:tabular-nums}
+.recordsHeading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:18px 20px;border-bottom:1px dashed #bfccd8;border-top:3px solid #233c59;border-radius:8px 8px 0 0}
+.recordsHeading span{font-size:10px;font-weight:750;letter-spacing:.13em;color:#4a6175}.recordsHeading h2{font-size:16px;font-weight:750;color:#233c59;margin-top:3px}.recordsHeading p{font-size:11px;color:#4a6175}
+.folioIdentity{display:flex;gap:12px;align-items:center;min-width:0}.folioMark{display:grid;place-items:center;width:34px;height:44px;flex:none;background:#eef4f6;border:1px solid #b9cbd3;border-radius:3px 8px 3px 3px;color:#285e69;font-size:10px;letter-spacing:.05em;font-weight:750;box-shadow:3px 3px 0 #e4ebef}
+.folioNumber{color:#234c69;font-variant-numeric:tabular-nums;letter-spacing:.03em}.status{display:inline-flex;border:1px solid #c6cfd8;background:#f1f4f7;color:#435366;padding:5px 9px;border-radius:4px;font-size:11px;font-weight:700;white-space:normal;line-height:1.5}
+.status[data-tone=amber]{background:#fff5e2;border-color:#e6cd99;color:#79500e}.status[data-tone=blue]{background:#edf4fc;border-color:#b6cde4;color:#245782}.status[data-tone=green]{background:#edf7f3;border-color:#b7d4c8;color:#246148}
+.folioIdentity strong,.folioIdentity small{display:block}.status{overflow-wrap:normal;word-break:normal}
+@media(max-width:1100px){:global(.operations-app) .records table:global(.adaptive-table) tbody td{padding:0;font-size:13px}.records table tbody td:nth-child(2){grid-column:1/-1}}
 @media(max-width:600px){.row{grid-template-columns:minmax(0,1fr);gap:14px;padding:18px 16px}.dates{gap:3px;padding:15px 8px}.dates strong{font-size:11px}.dates span{font-size:10px}.toolbar{gap:12px}.legend{padding:14px 16px}}

@@ -3,7 +3,7 @@ import {readRows} from './business';
 
 export interface WorkshopCost {
   id:string;order_id:string;kind:string;description:string;quantity:number;unit_cost:number;amount:number;
-  expense_id:string|null;supplier:string;source_reference:string;disposition:string;estimate_id:string|null;
+  expense_id:string|null;linked_expense_id?:string|null;supplier:string;source_reference:string;disposition:string;estimate_id:string|null;
   version:number;reason:string;occurred_at:string;created_by:string;created_at:string;
 }
 const messages:Record<string,string>={

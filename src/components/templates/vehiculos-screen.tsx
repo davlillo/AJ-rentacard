@@ -8,12 +8,13 @@ import {Empty} from '@/components/organisms/data-table';
 import {Button} from '@/components/ui/button';
 import {Badge,statusTone} from '@/components/atoms/badge';
 import {VehicleArt} from '@/components/atoms/vehicle-art';
-import {VehiclePhoto} from '@/components/atoms/vehicle-photo';
+import {VehicleImage} from '@/components/organisms/vehicle-image';
 import {VehicleDetail} from '@/components/organisms/vehicle-detail';
 import {vehicleHref} from '@/lib/supabase/cases';
 import {money} from '@/controladores/finanzas';
 import {fleetStatus,type FleetStatus} from '@/controladores/fleet-status';
 import {Pagination,usePagination} from '@/components/organisms/pagination';
+import styles from './vehicle-toolbar.module.css';
 
 export function VehiculosScreen(){
   const {data,open,source,can}=useBusiness();const [query,setQuery]=useState('');
@@ -28,20 +29,20 @@ export function VehiculosScreen(){
     .sort((a,b)=>(a.commercialLine??'').localeCompare(b.commercialLine??'','es')||a.plate.localeCompare(b.plate));
   const page=usePagination(vehicles,query+status,12);
   return <>
-    <PageHeading title="Vehículos" description="Tu flota de alquiler."
-      actions={<Button disabled={!can('vehicles.write')} onClick={()=>open('vehiculo')}><Plus size={16}/>Agregar vehículo</Button>}/>
-    <div className="vehicle-toolbar"><div className="tabs" role="tablist" aria-label="Estado de la flota">
+    <PageHeading title="Vehículos" description="Tu flota de alquiler."/>
+    <div className={styles.toolbar}><div className={`tabs ${styles.filters}`} role="tablist" aria-label="Estado de la flota">
       {([['Todos','Toda la flota'],['Disponible','Disponibles'],['Alquilado','Alquilados'],['Reservado','Reservados']] as const)
         .map(([value,label])=><button role="tab" aria-selected={status===value} className={status===value?'active':''}
         key={value} onClick={()=>setStatus(value)}>{label}<span>
           {value==='Todos'?fleet.length:fleet.filter(v=>states.get(v.id)===value).length}</span></button>)}
-    </div><div className="search-field"><CarFront size={16}/><input aria-label="Buscar vehículo"
-      placeholder="Buscar placa, modelo o línea..." value={query} onChange={e=>setQuery(e.target.value)}/></div></div>
-    <div className="vehicle-grid">{page.items.map(v=><article className="vehicle-card" key={v.id}>
+    </div><div className={`search-field ${styles.search}`}><CarFront size={16}/><input aria-label="Buscar vehículo"
+      placeholder="Buscar placa, modelo o línea..." value={query} onChange={e=>setQuery(e.target.value)}/></div>
+      <Button className={styles.add} disabled={!can('vehicles.write')} onClick={()=>open('vehiculo')}><Plus size={16}/>Agregar vehículo</Button></div>
+    <div className="vehicle-grid">{page.items.map(v=><article className={`vehicle-card ${styles.card}`} key={v.id}>
+      {source==='supabase'?<VehicleImage vehicleId={v.id} plate={v.plate} fileId={v.primaryPhotoId} editable/>:
+        <div className="vehicle-image"><VehicleArt color={v.color} category={v.category} model={`${v.brand} ${v.model}`}/></div>}
       <div className="vehicle-card-top"><span className="vehicle-category">{v.commercialLine||v.category}</span>
         <Badge tone={states.get(v.id)==='Reservado'?'amber':statusTone(v.status)}>{states.get(v.id)}</Badge></div>
-      {(source==='demo'||v.primaryPhotoId)&&<div className="vehicle-image">{source==='supabase'?<VehiclePhoto fileId={v.primaryPhotoId} plate={v.plate}/>:
-        <VehicleArt color={v.color} category={v.category} model={`${v.brand} ${v.model}`}/>}</div>}
       <div className="vehicle-card-info"><div><h2>{v.brand} {v.model}</h2><span>{v.year}{v.color?' · '+v.color:''}</span></div>
         <span className="plate">{v.plate||'Sin placa'}</span></div>
       <div className="vehicle-facts"><span><Gauge size={14}/>{v.unverified_fields?.includes('km')?'Kilometraje pendiente':`${v.km.toLocaleString()} km`}</span>

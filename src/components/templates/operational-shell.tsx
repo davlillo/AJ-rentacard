@@ -2,19 +2,21 @@
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
 import {useState} from 'react';
-import {CalendarDays,CarFront,Check,LayoutDashboard,Menu,Users,Wrench,BookOpen,FileText,Wallet,RefreshCw,LogOut,X} from 'lucide-react';
+import {CalendarDays,KeyRound,CarFront,Check,LayoutDashboard,Menu,Users,Wrench,BookOpen,FileText,Wallet,RefreshCw,LogOut,X} from 'lucide-react';
 import {useBusiness} from '@/hooks/use-business';
 import {OperationDialog} from '@/components/organisms/operation-dialog';
 import {createSupabaseBrowserClient} from '@/lib/supabase/client';
+import {isRentalPath} from '@/controladores/rental-workflow';
 
 const navigation = [
   {href:'/inicio',label:'Inicio',icon:LayoutDashboard,permission:''},
   {href:'/clientes',label:'Clientes',icon:Users,permission:'customers.read'},
   {href:'/vehiculos',label:'Vehículos',icon:CarFront,permission:'vehicles.read'},
   {href:'/calendario',label:'Calendario',icon:CalendarDays,permission:'orders.read'},
+  {href:'/alquileres',label:'Alquileres',icon:KeyRound,permission:'orders.read'},
   {href:'/taller',label:'Taller',icon:Wrench,permission:'orders.read'},
   {href:'/presupuestos',label:'Presupuestos',icon:FileText,permission:'expenses.write'},
-  {href:'/cobros',label:'Cargos y cobros',icon:Wallet,permission:'expenses.read'},
+  {href:'/cobros',label:'Cobros',icon:Wallet,permission:'expenses.read'},
   {href:'/libro-diario',label:'Libro diario',icon:BookOpen,permission:'expenses.read'},
 ];
 
@@ -23,7 +25,7 @@ export function OperationalShell({children}: {children: React.ReactNode}) {
   const path = usePathname().replace(/\/$/, '') || '/inicio';
   const [mobile, setMobile] = useState(false);
   const items=navigation.filter(item=>!item.permission||can(item.permission)||(item.href==='/taller'&&can('tasks.read')));
-  const current=navigation.find(item=>path===item.href||path.startsWith(item.href+'/'))?.label??(path==='/tareas'?'Taller':'Detalle');
+  const current=path==='/calendario'?'Calendario':isRentalPath(path)?'Alquileres':navigation.find(item=>path===item.href||path.startsWith(item.href+'/'))?.label??(path==='/tareas'?'Taller':'Detalle');
   return <div className="app-shell operations-app">
     <aside className={`sidebar ${mobile ? 'mobile-open' : ''}`}>
       <Link href="/inicio" className="brand" onClick={() => setMobile(false)}>

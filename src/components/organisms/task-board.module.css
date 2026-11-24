@@ -1,0 +1,19 @@
+.board { min-width: 0; }
+.heading { margin-bottom: 1rem; }
+.heading h3 { font-size: 1.05rem; font-weight: 750; }
+.heading p, .account { color: #52616b; font-size: .875rem; }
+.heading p { margin-top: .35rem; max-width: 65ch; }
+.create { border: 1px solid #dce5e8; border-left: 3px solid #20756e; padding: 1rem; border-radius: .5rem; }
+.account { display: block; margin-top: .4rem; overflow-wrap: anywhere; }
+.editor { margin-top: .75rem; max-width: 28rem; }
+.editor form { margin-top: .75rem; padding: .75rem; background: #f4f8f7; border-radius: .5rem; }
+.board input, .board select { min-width: 0; width: 100%; min-height: 44px; }
+.board button { min-height: 44px; white-space: normal; }
+.notice { padding: .85rem; margin-bottom: 1rem; background: #fff7e6; color: #734b0a; border-radius: .5rem; }
+.board :focus-visible { outline: 2px solid #20756e; outline-offset: 3px; }
+@media (max-width: 640px) {
+  .create { padding: .75rem; }
+  .board.board table tbody tr { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .board.board table tbody tr td { grid-column: 1 / -1; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .editor { max-width: 100%; }
+}

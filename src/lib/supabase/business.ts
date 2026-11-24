@@ -2,7 +2,7 @@ import type {BusinessData, Customer, Vehicle, WorkOrder, Movement, WorkshopTask,
 import {createSupabaseBrowserClient} from './client';
 
 export type BusinessCommand = 'create_customer' | 'merge_customer' | 'create_vehicle' |
-  'receive_vehicle' | 'record_expense';
+  'receive_vehicle' | 'receive_workshop_vehicle' | 'record_expense';
 export interface CommandResult {id: string; command: BusinessCommand; createdAt: string;}
 export const emptyBusiness: BusinessData = {
   customers: [], vehicles: [], orders: [], movements: [], rentals: [], items: [], estimates: [],
@@ -12,7 +12,7 @@ const messages: Record<string, string> = {
   PERMISSION_DENIED: 'Tu usuario no tiene permiso para esta acción.',
   CUSTOMER_MATCH_EXISTS: 'Ya existe un cliente con ese teléfono o documento. Revisá las coincidencias.',
   IDEMPOTENCY_CONFLICT: 'Esta solicitud ya se usó con otros datos. Abrí un nuevo formulario.',
-  VERSION_CONFLICT: 'Los clientes cambiaron. Actualizá la página antes de fusionarlos.',
+  VERSION_CONFLICT: 'El registro cambió. Actualice la vista antes de guardar.',
   INVALID_MERGE: 'Seleccioná dos clientes activos distintos e indicá el motivo.',
   VEHICLE_UNAVAILABLE: 'El vehículo ya tiene un compromiso o no está disponible.',
   INVALID_OPERATION: 'La operación no existe o está cerrada.',
@@ -20,14 +20,15 @@ const messages: Record<string, string> = {
   INVALID_OWNER: 'Seleccioná un propietario activo.',
   DIRECT_PURCHASE_PAYMENT_REQUIRED: 'Esta referencia ya es una compra directa. Registre su pago en Costos de la orden para no duplicarlo.',
   INTERNAL_FLEET_VEHICLE_REQUIRED: 'El mantenimiento interno requiere un vehículo de la flota disponible.',
+  CUSTOMER_WORKSHOP_VEHICLE_REQUIRED:'Seleccione un vehículo de cliente fuera de la flota. Para un carro de alquiler, use mantenimiento interno.',
+  VEHICLE_HAS_OPEN_WORK:'Este vehículo ya tiene un expediente abierto. Complete su recepción o continúe en ese expediente.',
 };
 
 export async function executeCommand(
   command: BusinessCommand, payload: Record<string, unknown>, key: string,
 ): Promise<CommandResult> {
-  const {data, error} = await createSupabaseBrowserClient().rpc('execute_command', {
-    command, payload, idempotency_key: key,
-  });
+  const {data, error} = await createSupabaseBrowserClient().rpc(command==='receive_workshop_vehicle'?'receive_workshop_vehicle':'execute_command',
+    command==='receive_workshop_vehicle'?{payload,idempotency_key:key}:{command,payload,idempotency_key:key});
   if (error) throw new Error(messages[error.message] ?? 'No se guardó el registro. Revisá los datos o la conexión.');
   return data as CommandResult;
 }
@@ -39,7 +40,8 @@ export async function readRows<T>(table: string, columns: string, order = 'id'):
     const {data, error,status} = await createSupabaseBrowserClient().from(table)
       .select(columns).order(order).range(offset, offset + 499).returns<T[]>();
     if(error)throw new Error('No se pudieron cargar los datos compartidos.',{
-      cause:{code:error.code,status,resource:table},
+      cause:{code:error.code,status,resource:table,
+        ...(table === 'workshop_tasks' && isMissingResponsibleNameColumn(error) ? {missingResponsibleName:true} : {})},
     });
     result.push(...data);
     if (data.length < 500) return result;
@@ -55,6 +57,26 @@ interface Expense {
 }
 interface Alias {source_id: string; customer_id: string; snapshot: Customer;}
 
+export function isMissingResponsibleNameColumn(error: {code?:string; message?:string}): boolean {
+  return (error.code === '42703' || error.code === 'PGRST204') &&
+    /(?:^|[^a-z_])responsible_name(?:[^a-z_]|$)/i.test(error.message ?? '') &&
+    /column/i.test(error.message ?? '');
+}
+
+export async function readWorkshopTasks(): Promise<{tasks:WorkshopTask[]; available:boolean}> {
+  const columns = '*,orderId:order_id,assignedTo:assigned_to,assigneeLabel:assignee_label,createdAt:created_at';
+  try {
+    return {tasks:await readRows<WorkshopTask>('workshop_tasks', columns + ',responsibleName:responsible_name'),
+      available:true};
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : null;
+    if (!cause || typeof cause !== 'object' || !('missingResponsibleName' in cause) || !cause.missingResponsibleName) {
+      throw error;
+    }
+    return {tasks:await readRows<WorkshopTask>('workshop_tasks', columns), available:false};
+  }
+}
+
 export async function loadBusiness(): Promise<BusinessData> {
   const [customers, aliases, vehicles, orders, expenses, tasks, reservationHistory, photos] = await Promise.all([
     readRows<StoredCustomer>('customers', '*'),
@@ -63,8 +85,8 @@ export async function loadBusiness(): Promise<BusinessData> {
     readRows<WorkOrder>('work_orders', '*,vehicleId:vehicle_id,customerId:customer_id,pendingFields:pending_fields,' +
       'occurredAt:occurred_at,createdAt:created_at,createdBy:created_by,internalJob:internal_job'),
     readRows<Expense>('expenses', '*'),
-    readRows<WorkshopTask>('workshop_tasks', '*,orderId:order_id,assignedTo:assigned_to,assigneeLabel:assignee_label,createdAt:created_at'),
-    readRows<ReservationHistory>('reservations','id,vehicleId:vehicle_id,customerId:customer_id,start:starts_at,end:ends_at,status,rentalState:rental_state'),
+    readWorkshopTasks(),
+    readRows<ReservationHistory>('reservations','id,vehicleId:vehicle_id,customerId:customer_id,start:starts_at,end:ends_at,status,rentalState:rental_state,folioNumber:folio_number'),
     readRows<{id:string;vehicle_id:string;mime:string;purpose:string;financial:boolean;created_at:string}>('vehicle_files','id,vehicle_id,mime,purpose,financial,created_at'),
   ]);
   return {
@@ -74,7 +96,7 @@ export async function loadBusiness(): Promise<BusinessData> {
     })),
     vehicles:vehicles.map(vehicle=>({...vehicle,primaryPhotoId:photos.filter(photo=>photo.vehicle_id===vehicle.id&&
       photo.mime.startsWith('image/')&&!photo.financial).sort((a,b)=>Number(b.purpose==='Vehículo')-Number(a.purpose==='Vehículo')||b.created_at.localeCompare(a.created_at))[0]?.id})),
-    orders, tasks, reservationHistory,
+    orders, tasks:tasks.tasks, taskResponsibleNameAvailable:tasks.available, reservationHistory,
     movements: expenses.map((expense): Movement => ({
       id: expense.id, date: expense.date, concept: expense.concept, amount: Number(expense.amount),
       method: expense.method, type: 'Egreso',

@@ -77,7 +77,7 @@ function ControlWorkspace(){
       {name:'source',label:'Sistema de origen'},{name:'externalId',label:'Identificador externo del evento'},
       {name:'event',label:'Datos del gasto externo (JSON)',type:'textarea'}
     ]} onSubmit={values=>{void run(async()=>{await submit('optional','enqueue',{...values,event:JSON.parse(values.event)});});}}/>
-    <section className="panel p-5 mt-4"><h2 className="font-semibold">Inbox y recuperación</h2><p className="field-hint">Adaptador local autorizado para gastos. No se han configurado credenciales fiscales ni de WhatsApp.</p>
+    <section className="panel p-5 mt-4"><h2 className="font-semibold">Inbox y recuperación</h2><p className="field-hint">Adaptador local autorizado para gastos. Las integraciones externas requieren configuración y autorización.</p>
       {events.map(event=><article key={event.id} className="inline-note mt-3"><p>{event.source} / {event.external_id} · {event.state} · intentos {event.attempts}</p>
         <small>{event.last_error??event.result?.id??event.id}</small><Button variant="outline" className="mt-2" disabled={busy} onClick={()=>{void run(async()=>{await submit('optional','process',{eventId:event.id});});}}>Procesar o reintentar evento</Button>
       </article>)}

@@ -1,0 +1,25 @@
+# Flow clarity: saturation and duplicated navigation
+Objective: Apply the measured saturation findings of the flow audit so each screen shows one navigation, one primary action and no content that belongs to another stage.
+Branch: feature/pruebas; local only, no commits/push, no database writes or migrations. Checks: focused tests, synthetic browser fixtures, TypeScript, full suite and production build at the end. Engram mirror pending unresolved project identity.
+
+## Specs
++- S1: “pantallas no saturadas con cosas, lógicas y entendibles” — Each screen must present at most ONE primary action, a clear current context and a short, non-repetitive set of facts. Measure after the change: visible headings, primary versus secondary buttons, form fields, definition rows, notes, panels and total interactive elements per screen, recorded in the audit measurements file.
++- S2: The folio must have exactly ONE navigation. The rental folio already replaced its tab bar with the stage circles; the workshop folio still stacks six circles plus a section navigation row, which duplicates the journey and contradicts it.
++- S3: The rental stages “Crear reserva” and “En reserva” render byte-identical agreement content, so six circles expose only five distinct screens. Merge them into one agreement stage that shows the draft confirmation when the reservation is still a draft and the agreement once it is confirmed.
++- S4: A collection action placed in the page header leaks into every rental stage and is duplicated inside Cuentas. The collection belongs to Cuentas only, and there must be exactly one control for it.
++- S5: The client detail document export is mounted in two stages (agreement and Cuentas). It belongs to the agreement stage; Cuentas must not repeat a customer-facing artifact inside money work.
++- S6: Stages that have no primary action must promote their real one: the agreement (save the agreement or observations), the rented stage, the return stage (register the return) and the intake wizard (advance / create the work order). At most one primary per screen; everything else outline or ghost.
++- S7: Internal cost information must not appear inside client-price screens that state they contain no internal cost or margin. The budget editor's internal-cost column, the margin line and the cost-entry panels in client-facing views must be removed from those views or clearly separated as internal-only.
++- S8: The same money must not be repeated in three places (folio overview, quote detail, collection card). Keep the authoritative place per screen and link to the others.
++- S9: Wording corrections from the audit: Cuentas must point at the stage that actually holds the extension (the rented stage, not Resumen); the jargon list must go (“Costos sin disposición”, “Versión pendiente de decisión”, “Sin cargo”, “No disponible”, “Alcance aprobado vigente”, “Por repartir”, “Aplicaciones”, “Anticipos disponibles (sin aplicar)”, “Margen interno”); stacked status paragraphs above the stage content must collapse into one line.
++- S10: The collection card must not offer two links that open the same folio.
+
+## Tasks
++- T1 [S1-S10] delegated — Pending: apply the findings after the concurrent end-to-end UI test-and-fix worker finishes, so the two do not edit the same screens at once.
++- T2 [S1-S10] verification — Pending: re-measure the same screens and compare the counts with test-results/flow-audit/measurements.json, re-run the affected fixtures, then the full suite and the production build.
+
+## Log
++- L1: The measured audit (test-results/flow-audit/report.md, 39 screenshots) found: two identical rental stages; a header collection button on every stage plus a duplicate inside Cuentas; five screens with more than one primary action and three with none; the client document mounted twice; internal costs visible in client-price screens; the same money repeated in three places; two navigations in the workshop folio; a wrong pointer from Cuentas to the extension stage; twelve stacked notes on Cuentas; eleven jargon expressions; an intake wizard without a primary action; a quote editor with 26 fields and a demoted commit; and two identical links on the collection card.
++- L2: Screens already judged good and not to be disturbed: the rentals list, the workshop list with its “1 Cliente · 2 Vehículo · 3 Folio OT” legend, the intake type choice, the budgets list, the “¿Cuánto pagaste?” cost entry, the vehicle dossier with its five sections, the rental wizard steps 1-2, the agreed/collected/pending triple, the issue modal with its eight plain fact rows, and the note that selecting a phase only opens its section.
++- L3: The audit observed the seeded rental ALQ-17 already settled (agreed $50, issued $50, collected $50, pending $0) and one work order (OT-00037, 'PRUEBA-UI-1', quote PRE-00020) created by the concurrent end-to-end UI test worker. The measurements therefore come from real records, not from a synthetic fixture.
++- L4: The one-primary rule is measured by the computed brand-red background (#e52b40), not by guessing from markup.

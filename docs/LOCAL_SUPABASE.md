@@ -4,7 +4,9 @@ The operational mode uses an isolated AJ Supabase project, real sessions and dat
 
 ## Current status
 
-The minimal AJ stack runs with forward migrations through `20261031000400`. The authorized fixture cleanup and subsequent source-backed data load are complete; see [OPERATIONAL_FIT.md](OPERATIONAL_FIT.md). Before cleanup, a complete verified archive and source snapshot were saved under private `test-results/before-real-data-1793417922047/`. No unrelated project was stopped, reset or deleted. Earlier fixture-producing HTTP suites are historical evidence, not a reason to repopulate this workspace.
+The minimal AJ stack runs with forward migrations through `20261102000100`. The authorized fixture cleanup and subsequent source-backed data load are complete; the 27 imported fleet cars now have explicitly confirmed initial availability. See [OPERATIONAL_FIT.md](OPERATIONAL_FIT.md). Complete verified private archives precede cleanup, the availability update and the connected-money extension. No unrelated project was reset or deleted. Earlier fixture-producing HTTP suites are historical evidence, not a reason to repopulate this workspace.
+
+The November 2 API/Auth outage was recovered with a Docker Desktop stop/start after a normal restart timed out. This briefly interrupted shared containers, which resumed automatically; no volumes were removed or databases reset. All pending API, responsive usability/redesign, login and session-recovery checks subsequently passed sequentially. Final hashes of all 59 existing AJ public tables were unchanged. Docker logs recorded disk-full errors before the freeze; C: has approximately 7 GB free, so preserve additional disk headroom rather than treating a restart as a storage fix.
 
 The startup wrapper creates the dedicated network recommended by Supabase with `host_binding_ipv4=127.0.0.1`. **Docker Desktop on this machine still publishes ports on `0.0.0.0` / IPv6 despite that option.** The wrapper detects and warns about this. Keep this development machine on a trusted network and never expose these ports publicly; a localhost URL alone is not a security boundary. Restrict host port publication before loading sensitive real-world data or deploying.
 
@@ -55,11 +57,19 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r tests/browser/requirements.txt
 .\.venv\Scripts\python.exe -m playwright install chromium
 .\.venv\Scripts\python.exe tests/browser/usability_acceptance.py
+.\.venv\Scripts\python.exe tests/browser/redesign_acceptance.py
+.\.venv\Scripts\python.exe tests/browser/connected_money_acceptance.py
 .\.venv\Scripts\python.exe tests/browser/login_acceptance.py
 .\.venv\Scripts\python.exe tests/browser/session_recovery_acceptance.py
 ```
 
 These browser checks are read-only for business records and save ignored private screenshots under `test-results/`. The real-database verification calls the new RPCs inside a rolled-back transaction and confirms unchanged counts/hashes. They do not use personal browser profiles or reset the database. Run heavy PGlite suites before, not concurrently with, browser sign-in to avoid resource-induced local Auth timeouts.
+
+`redesign_acceptance.py` simulates populated monthly reservations, blocked dates, costs, charges, receipt applications and private-photo propagation only inside the isolated browser. Business writes are blocked before reaching the API; no test photos, reservations or money are persisted. The ordinary usability run still checks the actual live-data workspace at 320/390/768/1440 px.
+
+`connected_money_acceptance.py` additionally exercises capture from diary and folio, one expense split across three jobs, a linked advance before billing, application of an existing receipt without new cash, and an existing cost incorporated into a complete budget revision. Its populated responses exist only in the browser; before/after financial-table snapshots verify no real writes.
+
+`node scripts/apply-connected-money.mjs` defaults to a real PostgreSQL rollback rehearsal. The authorized `--apply` path verifies a private archive and unchanged hashes for existing business tables before completing the schema extension. Never substitute a reset or an import of historical workbook balances.
 
 **Do not run `test:local`, `test:roles` or the legacy `acceptance.py`, `rentals_acceptance.py`, `operational_fit_acceptance.py` against this clean workspace.** Those suites retain synthetic users/business records. Run them only against a separately provisioned disposable environment; never use production.
 
@@ -97,7 +107,7 @@ Workshop tasks are managed separately through `execute_task_command`: responsibl
 
 HU08–HU12 add deterministic tariff-based estimates, immutable approved versions and PDF bytes, destination-bound actual costs, audited task timers and reviewed delivery. Migration `20261022002100` adds explicit partial payments for direct purchases without duplicate actual costs. See [WORKSHOP.md](WORKSHOP.md) for the workflow and explicit inspection/valuation boundaries.
 
-Rentals, payment documents/applications/imports, inventory, contracts, commissions, reports and owner controls now have operational workflows. See [OPERATIONS.md](OPERATIONS.md). Full photo uploads, calibrated labor valuation, external-provider setup and production administration/security are not certified by this delivery. RPCs expose fixed commands, not arbitrary SQL or arbitrary HTTP access.
+Rentals, payment documents/applications/imports, inventory, contracts, commissions, reports and owner controls now have operational workflows. See [OPERATIONS.md](OPERATIONS.md). Private photo uploads have isolated SQL and browser-response simulation coverage; no synthetic photos are persisted in the real workspace. Production file provisioning, calibrated labor valuation, external-provider setup and production administration/security remain separate acceptance boundaries. RPCs expose fixed commands, not arbitrary SQL or arbitrary HTTP access.
 
 ## Migration recovery
 

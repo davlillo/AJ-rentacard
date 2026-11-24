@@ -16,15 +16,17 @@ export interface VehicleFile {
 }
 export interface CostAllocation {id:string;cost_id:string;estimate_id:string|null;line_index:number|null;description:string;amount:number;}
 export interface CaseDocument {id:string;description:string;amount:number;scope_amount:number;scope_balance:number;issued_on:string;due_on:string;grouped?:boolean;folio_number?:number;}
-export interface CaseExpense {id:string;date:string;concept:string;amount:number;account:string;support:string;direct_purchase_cost_id:string|null;}
+export interface CaseExpense {id:string;date:string;concept:string;amount:number;scope_amount?:number;shared?:boolean;account:string;support:string;direct_purchase_cost_id:string|null;}
 export interface CaseFile {
   vehicle:CaseVehicle;financialAccess:boolean;orders:CaseOrder[];reservations:Reservation[];commitments:Commitment[];
-  inspections:{id:string;order_id:string;km:number;fuel:number;condition:string;accessories:string;created_at:string}[];
+  inspections:{id:string;order_id:string;km:number|null;fuel:number|null;condition:string;accessories:string;created_at:string}[];
   files:VehicleFile[];quotes?:QuoteVersion[];costs?:WorkshopCost[];allocations?:CostAllocation[];
   expenses?:CaseExpense[];documents?:CaseDocument[];applications?:(PaymentApplication&{scope_amount:number})[];payments?:CustomerPayment[];
+  advances?:(CustomerPayment&{available_amount:number})[];
 }
 const messages:Record<string,string>={
   PERMISSION_DENIED:'No tiene permiso para esta acción.',VERSION_CONFLICT:'El registro cambió. Actualice antes de guardar.',
+  INTERNAL_VEHICLE_NOT_A_SALE:'Este vehículo está registrado como propio de AJ. Revise el tipo de ingreso; el mantenimiento interno no se factura a un cliente.',
   PARENT_VERSION_CONFLICT:'Existe una versión más reciente. Actualice el pliego.',
   VEHICLE_NOT_FOUND:'No existe el vehículo solicitado.',ORDER_NOT_FOUND:'El ingreso no pertenece a este vehículo.',
   ORDER_NOT_OPEN:'El ingreso ya está entregado.',ODOMETER_CANNOT_DECREASE:'El kilometraje no puede disminuir.',
@@ -69,5 +71,5 @@ export async function uploadVehicleFile(file:File,payload:Record<string,unknown>
 }
 export const vehicleHref=(id:string)=>`/vehiculos/expediente/?id=${encodeURIComponent(id)}`;
 export const orderHref=(id:string)=>`/taller/ingreso/?id=${encodeURIComponent(id)}`;
-export const rentalHref=(id:string)=>`/vehiculos/alquiler/?id=${encodeURIComponent(id)}`;
+export const rentalHref=(id:string)=>`/alquileres/folio/?id=${encodeURIComponent(id)}`;
 export function loadRentalCase(id:string):Promise<CaseFile>{return caseRpc('rental_case_file',{reservation_id:id});}

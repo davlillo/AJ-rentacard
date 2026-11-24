@@ -27,3 +27,22 @@ test('Internal maintenance preview separates120known costs from zero commercial 
   assert.equal(budgetDraftTotals([...lines,{quantity:'1',unitPrice:'0',unitCost:''}],'0').costComplete,false);
   assert.equal(budgetDraftTotals([{quantity:'1',unitPrice:'0',unitCost:'0'}],'0').costComplete,true);
 });
+
+test('Cost-first preview leaves the customer price manual and subtracts costs after the discount',()=>{
+  const totals=budgetDraftTotals([{quantity:'2',unitPrice:'45',unitCost:'20'},{quantity:'1',unitPrice:'45',unitCost:'30'}],'5');
+  assert.equal(totals.cost,70);assert.equal(totals.total,130);
+  assert.equal(totals.priceComplete,true);assert.equal(totals.margin,60);
+});
+
+test('Cost-first preview never presents missing cost or missing selling price as profit',()=>{
+  assert.equal(budgetDraftTotals([{quantity:'1',unitPrice:'80',unitCost:''}],'0').margin,null);
+  const unpriced=budgetDraftTotals([{quantity:'1',unitPrice:'',unitCost:'50'}],'0');
+  assert.equal(unpriced.cost,50);assert.equal(unpriced.priceComplete,false);assert.equal(unpriced.margin,null);
+  assert.equal(budgetDraftTotals([{quantity:'1',unitPrice:'80',unitCost:'0'}],'0').margin,80);
+});
+
+test('Cost-first preview preserves losses, per-line cents and the internal-maintenance exception',()=>{
+  assert.equal(budgetDraftTotals([{quantity:'1',unitPrice:'40',unitCost:'50'}],'0').margin,-10);
+  assert.equal(budgetDraftTotals([{quantity:'1',unitPrice:'0.005',unitCost:'0.004'}],'0').margin,.01);
+  assert.equal(budgetDraftTotals([{quantity:'1',unitPrice:'0',unitCost:'50'}],'0',true).margin,null);
+});

@@ -3,6 +3,8 @@ import {useRef,useState} from 'react';
 import {ArrowRight,CarFront,Eye,EyeOff,LoaderCircle,LockKeyhole,Mail,ShieldCheck,Wrench} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {createSupabaseBrowserClient} from '@/lib/supabase/client';
+import {isShowcase} from '@/lib/showcase';
+import {ShowcaseAccess} from './showcase-access';
 import styles from './session-form.module.css';
 
 export function SessionForm() {
@@ -39,8 +41,9 @@ export function SessionForm() {
         <div className={styles.accessIcon}><LockKeyhole size={23} strokeWidth={1.7}/></div>
         <p className={styles.formEyebrow}>BIENVENIDO A AJ</p>
         <h1 id="aj-login-title">Ingresar al sistema</h1>
-        <p className={styles.description} id="aj-login-description">Su próximo movimiento comienza aquí.<br/>Acceda con su cuenta de trabajo.</p>
-        <form className={styles.form} aria-describedby="aj-login-description" aria-busy={busy} onSubmit={async event => {
+        <p className={styles.description} id="aj-login-description">{isShowcase?'Acceda a su espacio de trabajo.':<>Su próximo movimiento comienza aquí.<br/>Acceda con su cuenta de trabajo.</>}</p>
+        {isShowcase&&<ShowcaseAccess/>}
+        {!isShowcase&&<form className={styles.form} aria-describedby="aj-login-description" aria-busy={busy} onSubmit={async event => {
         event.preventDefault();
         if(sending.current)return;
         sending.current=true;
@@ -74,8 +77,8 @@ export function SessionForm() {
               {busy?<><LoaderCircle size={18} className={styles.spinner} aria-hidden="true"/>Ingresando…</>:<>Ingresar<ArrowRight size={18} aria-hidden="true"/></>}
             </Button>
           </fieldset>
-        </form>
-        <p className={styles.help}>¿Necesita una cuenta o recuperar su acceso?<br/><strong>Comuníquese con la administración de AJ.</strong></p>
+        </form>}
+        {!isShowcase&&<p className={styles.help}>¿Necesita una cuenta o recuperar su acceso?<br/><strong>Comuníquese con la administración de AJ.</strong></p>}
       </div>
       <footer className={styles.accessFooter}><ShieldCheck size={16} aria-hidden="true"/>
         <span>Acceso exclusivo para personal autorizado.</span>

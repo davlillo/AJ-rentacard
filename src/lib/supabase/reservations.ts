@@ -6,10 +6,11 @@ export interface Reservation {
   id:string;customer_id:string;vehicle_id:string;starts_at:string;ends_at:string;daily_rate:number;total:number;
   cleaning_minutes:number;status:'Borrador'|'Confirmada'|'Cancelada';rental_state:'Preparado'|'Entregado'|'Devuelto'|'Cerrado';
   seller_id:string;customer_snapshot:Customer;vehicle_snapshot:Vehicle;version:number;created_at:string;open_ended?:boolean;folio_number?:number;
+  actual_departure_at?:string|null;actual_return_at?:string|null;
 }
 export interface Commitment {id:string;vehicle_id:string;reservation_id:string|null;order_id:string|null;kind:'Reserva'|'Taller'|'Limpieza'|'Uso interno'|'Préstamo';starts_at:string;ends_at:string;active:boolean;reason:string;}
 export interface ReservationEvidence {id:string;reservation_id:string;channel:string;body:string;occurred_at:string;created_by:string;created_at:string;}
-export type ReservationCommand='create'|'confirm'|'cancel'|'extend'|'evidence'|'block'|'finish_block'|'plan_workshop'|'period'|'set_end';
+export type ReservationCommand='create'|'confirm'|'cancel'|'extend'|'evidence'|'block'|'finish_block'|'plan_workshop'|'period'|'set_end'|'review_return_cleaning';
 export const reservationMessages:Record<string,string>={
   PERMISSION_DENIED:'No tiene permiso para esta acción.',RENTAL_CONFLICT:'El intervalo coincide con otro compromiso. Revise las alternativas.',
   VERSION_CONFLICT:'La reserva cambió. Actualice antes de guardar.',INVALID_RENTAL_PARTIES:'Seleccione cliente activo y vehículo incluido en flota.',
@@ -20,15 +21,27 @@ export const reservationMessages:Record<string,string>={
   INVALID_CANCELLATION:'Solo se puede cancelar una reserva aún no entregada, con motivo.',
   RESERVATION_NOT_DRAFT:'La reserva ya no es un borrador.',INVALID_RATE_PRECISION:'La tarifa admite hasta dos decimales.',
   BLOCK_CANNOT_BE_FINISHED:'El bloqueo está inactivo, aún no comenzó o pertenece a una orden; revise la entrega de taller.',
-  RETURN_CLEANING_REQUIRED:'La devolución solo puede liberarse al completar su propia limpieza activa.',
+  RETURN_CLEANING_REQUIRED:'El vehículo solo se libera cuando la devolución tiene su revisión de entrega activa.',
   RENTAL_NOT_READY_FOR_DEPARTURE:'La reserva debe estar confirmada y dentro de su intervalo; el vehículo debe estar listo y disponible.',
   ODOMETER_CANNOT_DECREASE:'El kilometraje no puede ser inferior al registrado anteriormente.',
   RENTAL_NOT_OUT:'La reserva no está en estado entregado.',
   EXTRA_AMOUNT_REQUIRED:'Indique un importe positivo para aprobar el extra.',
+  EXTRA_NOT_FOUND:'El extra no existe o ya no está en este folio.',
+  EXTRA_NOT_APPROVED:'El extra todavía no está aprobado; emita solo los extras aprobados.',
+  EXTRA_ALREADY_ISSUED:'El extra ya tiene un documento de cobro emitido.',
+  EXTRA_REASON_REQUIRED:'Indique el motivo de la emisión del extra.',
+  RENTAL_CANCELLED:'La reserva está cancelada; no se puede emitir el importe del extra.',
+  CONFIRMED_RESERVATION_REQUIRED:'La reserva debe estar confirmada para emitir el importe del extra.',
+  IDEMPOTENCY_CONFLICT:'Esta operación ya se había registrado con otros datos. Revise y vuelva a intentar.',
+  INVALID_BILLING_AMOUNT_DATE:'Use un importe positivo con hasta dos decimales y una fecha válida, no futura.',
+  INVALID_REQUEST:'Revise los datos de la operación antes de guardar.',
+  VEHICLE_VERSION_CONFLICT:'El vehículo cambió. Actualice el expediente del vehículo y vuelva a confirmar la entrega.',
+  RETURN_CLEANING_NOT_REVIEWABLE:'Esta revisión no corresponde a la última devolución pendiente o ya fue confirmada. Actualice el expediente del vehículo.',
+  RETURN_CLEANING_REASON_REQUIRED_PLACEHOLDER:'Indique la revisión de entrega realizada (máximo 4000 caracteres).',
 };
 export async function rentalRpc<T>(name:string,args:Record<string,unknown>):Promise<T>{
   const {data,error}=await createSupabaseBrowserClient().rpc(name,args);
-  if(error)throw new Error(error.code==='23P01'?reservationMessages.RENTAL_CONFLICT:
+  if(error)throw new Error(error.code==='23P01'&&args.command==='period'?'Este período coincide con días ya facturados. Revise los cargos existentes antes de generar otro.':error.code==='23P01'?reservationMessages.RENTAL_CONFLICT:
     reservationMessages[error.message]??'No se guardó la operación. Revise los datos y la conexión.');
   return data as T;
 }
@@ -45,8 +58,13 @@ export async function rentalAlternatives(startsAt:string,endsAt:string,reservati
   return rentalRpc('rental_alternatives',{starts_at:startsAt,ends_at:endsAt,exclude_reservation:reservationId??null});
 }
 export const salvadorDateTime=(value:string)=>new Date(value+'-06:00').toISOString();
-export interface RentalInspection {id:string;reservation_id:string;kind:'Salida'|'Retorno';km:number;fuel:number;condition:string;accessories:string;evidence:string;occurred_at:string;created_by:string;}
-export interface RentalExtra {id:string;reservation_id:string;description:string;amount:number|null;status:string;version:number;reason:string;}
+export interface RentalInspection {id:string;reservation_id:string;kind:'Salida'|'Retorno';km:number|null;fuel:number|null;condition:string;accessories:string;evidence:string;occurred_at:string;created_by:string;}
+export interface RentalExtra {id:string;reservation_id:string;description:string;amount:number|null;status:string;version:number;reason:string;document_id?:string|null;issued_on?:string|null;due_on?:string|null;}
+// The command that turns an approved extra into a collection document of the reservation.
+export interface RentalExtraIssuance {proposal:RentalExtra;document:{id:string;amount:number;issued_on:string;due_on:string;description:string;};}
+export async function issueRentalExtra(payload:Record<string,unknown>,key:string):Promise<RentalExtraIssuance>{
+  return rentalRpc<RentalExtraIssuance>('issue_rental_extra',{payload,idempotency_key:key});
+}
 export async function loadRentalInspections(reservationId:string){
   const [inspections,extras]=await Promise.all([readRows<RentalInspection>('rental_inspections','*'),readRows<RentalExtra>('rental_extra_proposals','*')]);
   return{inspections:inspections.filter(i=>i.reservation_id===reservationId),extras:extras.filter(e=>e.reservation_id===reservationId)};
