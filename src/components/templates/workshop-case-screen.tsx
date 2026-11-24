@@ -11,7 +11,7 @@ import {RegistryDetails} from '@/components/organisms/registry-details';
 import {WorkshopStageProgress} from '@/components/organisms/workshop-stage-progress';
 import {WorkshopCosts} from '@/components/organisms/workshop-costs';
 import {WorkshopDeliveryReview} from '@/components/organisms/workshop-delivery';
-import {WorkshopCollections} from '@/components/organisms/workshop-collections';
+import {WorkshopCollections,WorkshopIssueForm} from '@/components/organisms/workshop-collections';
 import {CaseQuotes} from '@/components/organisms/case-quotes';
 import {BudgetEditor,type BudgetEditorSeed} from '@/components/templates/operational-estimates';
 import {workshopPipeline,resolvedSection,workshopMoney,workshopSection,type WorkshopSection} from '@/controladores/workshop-pipeline';
@@ -42,6 +42,9 @@ export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,er
     Number(pipeline.latest.snapshot.total):null;
   const scopeQuote=pipeline.approved??amounts?.quote;
   const scopePrice=approvedScope??amounts?.quoted??null;
+  // The approval decision is registered when the active scope is the approved
+  // revision itself; only then does the issuance of the importe make sense.
+  const decided=!!pipeline.approved&&!!pipeline.latest&&pipeline.latest.id===pipeline.approved.id;
   const scopeNote=approvedScope!==null?`Alcance aprobado · Versión ${pipeline.approved!.revision}`:
     `Última revisión · ${amounts?.quote?.status??'Por preparar'}`;
   const car=file.vehicle;
@@ -123,6 +126,14 @@ export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,er
         {seed&&<BudgetEditor orderId={job.id} seed={seed} onChange={onChange} onSaved={savedBudget} onClosed={()=>setSeed(null)}/>}
       </section>}
       {section==='approval'&&<section className="panel p-5"><h2 className="font-semibold mb-4">Aprobación del cliente</h2>
+        {decided&&!job.internal_job&&job.status!=='Entregado'&&<section className={styles.issueCard} aria-label="Emitir importe a cobrar">
+          <h3>Emitir importe a cobrar</h3>
+          <p>Trabajo acordado aprobado: <strong>{approvedScope===null?'Sin importe':money(approvedScope)}</strong></p>
+          <p>Registra el documento de cobro. No recibe dinero ni cambia el costo.</p>
+          {amounts&&amounts.unbilled>0?<WorkshopIssueForm file={file} job={job} onChange={onChange}/>
+            :<p className="field-hint">El alcance aprobado ya tiene su documento de cobro emitido.{' '}
+              <button type="button" className="text-link" onClick={()=>select('collections')}>Ver cobros →</button></p>}
+        </section>}
         {pipeline.latest?<CaseQuotes file={file} job={job} onChange={onChange}/>
           :<><p className="field-hint">Todavía no hay un presupuesto que el cliente pueda decidir.</p>
             <div className="mt-4"><Button onClick={()=>{select('budget');startEditor();}}>Crear el presupuesto del trabajo</Button></div></>}

@@ -40,7 +40,6 @@ function CollectionsWorkspace({file,job,onChange}:Props){
   const paidToSupplier=credit.lines.reduce((sum,line)=>sum+line.paid,0);
   const pendingWithSupplier=credit.lines.reduce((sum,line)=>sum+Math.max(line.pending,0),0);
   const [editor,setEditor]=useState<'new'|'existing'|'issue'>();
-  const [intentRevision,setIntentRevision]=useState('');
   const [receiptBusy,setReceiptBusy]=useState(false);
   const editorRef=useRef<HTMLDivElement>(null);
   const {busy,error,execute}=useCaseAction(onChange);
@@ -51,9 +50,7 @@ function CollectionsWorkspace({file,job,onChange}:Props){
   const individual=documents.filter(document=>!document.grouped&&Number(document.scope_balance)>0);
   const advances=(file.advances??[]).filter(payment=>Number(payment.available_amount)>0);
   const customer=data.customers.find(customer=>customer.id===job?.customer_id);
-  const stale=intentRevision!==summary.revision;
-  function open(next:'new'|'existing'|'issue'){
-    setIntentRevision(summary.revision);setEditor(next);
+  function open(next:'new'|'existing'|'issue'){setEditor(next);
     requestAnimationFrame(()=>editorRef.current?.focus());
   }
   if(job?.internal_job)return <p className="inline-note">{workshopMoneyLabels.internalNote}</p>;
@@ -98,22 +95,8 @@ function CollectionsWorkspace({file,job,onChange}:Props){
       {editor&&writable&&<div ref={editorRef} tabIndex={-1} className={styles.editor}>
         <div className={styles.editorHeading}><h4>{editor==='issue'?workshopMoneyLabels.prepareAction:editor==='existing'?'Usar anticipo disponible':'Registrar dinero recibido'}</h4>
           <Button variant="outline" disabled={busy||receiptBusy} onClick={()=>setEditor(undefined)}>Cerrar editor</Button></div>
-        {editor==='issue'?<form className="operation-form" onSubmit={event=>{
-          event.preventDefault();if(stale||!canIssue)return;
-          const form=new FormData(event.currentTarget);
-          void execute('bill_scope',{orderId:job!.id,date:String(form.get('date')),dueOn:String(form.get('dueOn'))})
-            .then(saved=>{if(saved)setEditor(undefined);});
-        }}>
-          <p>Se emitirá un documento de cobro por <strong>{money(summary.unbilled)}</strong>, únicamente por la diferencia del alcance aprobado. No registra dinero recibido ni acredita validez fiscal.</p>
-          {stale&&<p role="alert">El alcance o los movimientos cambiaron. Revise el importe actualizado antes de emitir.
-            <Button variant="outline" onClick={()=>setIntentRevision(summary.revision)}>Revisé el importe actualizado</Button></p>}
-          <div className="form-grid">
-            <label className="form-field"><span>Fecha de emisión</span><input type="date" name="date" required defaultValue={localToday()}/></label>
-            <label className="form-field"><span>Fecha de vencimiento</span><input type="date" name="dueOn" required defaultValue={localToday()}/></label>
-          </div>
-          {error&&<p role="alert" className="form-error">{error}</p>}
-          <Button type="submit" disabled={busy||stale||!canIssue}>{busy?'Emitiendo…':`${workshopMoneyLabels.issueAction} de ${money(summary.unbilled)}`}</Button>
-        </form>:<ReceiptForm key={editor} customerId={job!.customer_id!} orderId={job!.id}
+        {editor==='issue'?<WorkshopIssueForm file={file} job={job!} onChange={onChange} onIssued={()=>setEditor(undefined)}/>
+          :<ReceiptForm key={editor} customerId={job!.customer_id!} orderId={job!.id}
           onChange={onChange} onSaved={()=>setEditor(undefined)} onBusyChange={setReceiptBusy} revision={summary.revision}
           workshopContext={{mode:editor,documents:individual.map(document=>({id:document.id,balance:Number(document.scope_balance)})),advanceIds:advances.map(payment=>payment.id)}}
           presentation="embedded"/>}
@@ -167,4 +150,37 @@ function CollectionsWorkspace({file,job,onChange}:Props){
       </details>
     </>}
   </section>;
+}
+
+// One issuance form for every stage that offers it: the approval card and the
+// collections editor mount this same component, so the bill_scope command, its
+// payload, its guards and its idempotency behavior exist exactly once. It only
+// records the collection document; it never receives money or changes a cost.
+export function WorkshopIssueForm({file,job,onChange,onIssued}:{
+  file:CaseFile;job:CaseOrder;onChange:()=>Promise<void>;onIssued?:()=>void;
+}){
+  const {can}=useBusiness();
+  const summary=workshopCollections(file,job.id);
+  const inconsistent=file.vehicle.ownership==='Propio';
+  const writable=can('expenses.write')&&!!job.customer_id&&!job.internal_job;
+  const canIssue=writable&&!inconsistent&&summary.known&&summary.unbilled>0;
+  const [intentRevision,setIntentRevision]=useState(summary.revision);
+  const stale=intentRevision!==summary.revision;
+  const {busy,error,execute}=useCaseAction(onChange);
+  return <form className="operation-form" onSubmit={event=>{
+    event.preventDefault();if(stale||!canIssue)return;
+    const form=new FormData(event.currentTarget);
+    void execute('bill_scope',{orderId:job.id,date:String(form.get('date')),dueOn:String(form.get('dueOn'))})
+      .then(saved=>{if(saved)onIssued?.();});
+  }}>
+    <p>Se emitirá un documento de cobro por <strong>{money(summary.unbilled)}</strong>, únicamente por la diferencia del alcance aprobado. No registra dinero recibido ni acredita validez fiscal.</p>
+    {stale&&<p role="alert">El alcance o los movimientos cambiaron. Revise el importe actualizado antes de emitir.
+      <Button variant="outline" onClick={()=>setIntentRevision(summary.revision)}>Revisé el importe actualizado</Button></p>}
+    <div className="form-grid">
+      <label className="form-field"><span>Fecha de emisión</span><input type="date" name="date" required defaultValue={localToday()}/></label>
+      <label className="form-field"><span>Fecha de vencimiento</span><input type="date" name="dueOn" required defaultValue={localToday()}/></label>
+    </div>
+    {error&&<p role="alert" className="form-error">{error}</p>}
+    <Button type="submit" disabled={busy||stale||!canIssue}>{busy?'Emitiendo…':`${workshopMoneyLabels.issueAction} de ${money(summary.unbilled)}`}</Button>
+  </form>;
 }

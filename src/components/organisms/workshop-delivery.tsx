@@ -1,8 +1,10 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
+import Link from 'next/link';
 import {useBusiness} from '@/hooks/use-business';
 import {Button} from '@/components/ui/button';
 import {money} from '@/controladores/finanzas';
+import {orderHref} from '@/lib/supabase/cases';
 import {deliveryChecklist,deliverOrder,loadDelivery,type DeliveryChecklist,type WorkshopDelivery} from '@/lib/supabase/workshop';
 import {deliveryActaMoment,deliveryPendingCost,deliveryPendingVersion} from '@/controladores/workshop-delivery-labels';
 
@@ -20,11 +22,18 @@ export function WorkshopDeliveryReview({orderId,onChange,quoteLabels}:{orderId:s
       <li>Costos sin pagar: <strong>{checklist.pendingCosts}</strong></li>
       <li>Tareas sin finalizar: <strong>{checklist.openTasks.length}</strong></li>
       <li>Cronómetros abiertos: <strong>{checklist.openTimers.length}</strong></li>
-      <li>Versión del presupuesto sin decidir: {deliveryPendingVersion(checklist.pendingEstimate,quoteLabels??{})}</li>
+      <li>Versión del presupuesto sin decidir: {checklist.pendingEstimate
+        ?<Link href={orderHref(orderId)+'&seccion='+encodeURIComponent('Aprobación del cliente')}>
+          {deliveryPendingVersion(checklist.pendingEstimate,quoteLabels??{})} — decidir en Aprobación</Link>:'Ninguna'}</li>
       <li>Saldo documental: {money(checklist.estimatedUnpaid)}. Los importes pendientes de emitir siguen señalados por separado.</li>
       <li>Datos de recepción pendientes: {checklist.pendingFields.join(', ')||'Ninguno'}</li>
     </ul>
-    {checklist.costs.filter(cost=>cost.disposition==='Pendiente').map(cost=><p key={cost.id} className="form-error">{deliveryPendingCost(cost)}</p>)}
+    {/* Every blocker is named and linked to the stage that resolves it, so the
+      operator never has to guess where the pending work lives. */}
+    {checklist.costs.filter(cost=>cost.disposition==='Pendiente').map(cost=><p key={cost.id} className="form-error">
+      {deliveryPendingCost(cost)} — clasificar en <Link href={orderHref(orderId)+'&seccion='+encodeURIComponent('Costos')}>Costos del trabajo</Link></p>)}
+    {checklist.openTasks.map(task=><p key={task.id} className="form-error">
+      Tarea sin finalizar: {task.description} — <Link href={orderHref(orderId)+'&seccion='+encodeURIComponent('Tareas')}>revisar en Tareas</Link></p>)}
     {delivery?<section className="inline-note mt-4"><h3 className="font-semibold">Acta de entrega</h3>
       <p>{delivery.exception?'Entrega por excepción':'Entrega ordinaria'} · {delivery.recipient}</p>
       <p>{delivery.evidence}</p><p>{delivery.reason}</p><small>Registrada el {deliveryActaMoment(delivery.created_at)}</small>

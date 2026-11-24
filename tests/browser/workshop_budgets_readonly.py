@@ -5,6 +5,7 @@ fulfilled with a synthetic fixture, and any request the fixture does not know is
 """
 import copy
 import json
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse
@@ -12,7 +13,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import expect, sync_playwright
 import workshop_pipeline_readonly as fixture
 
-APP = 'http://127.0.0.1:3030'
+APP = os.environ.get('AJ_APP', 'http://127.0.0.1:3030')
 ROOT = Path('test-results/workshop-budgets')
 USER = fixture.USER
 CUSTOMER = fixture.CUSTOMER

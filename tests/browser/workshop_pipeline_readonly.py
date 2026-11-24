@@ -1,13 +1,14 @@
 """Exercise workshop order UI through synthetic HTTP only; unknown business requests abort."""
 import copy
 import json
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse, quote
 
 from playwright.sync_api import expect, sync_playwright
 
-APP = 'http://127.0.0.1:3030'
+APP = os.environ.get('AJ_APP', 'http://127.0.0.1:3030')
 ROOT = Path('test-results/workshop-pipeline')
 USER = '00000000-0000-4000-8000-000000009901'
 CUSTOMER = {'id': 'synthetic-customer', 'name': 'Synthetic workshop customer', 'phone': '',
@@ -42,8 +43,8 @@ FILES = [{'id': 'private', 'vehicle_id': VEHICLE['id'], 'order_id': JOB['id'], '
           'name': 'Synthetic inspection.pdf', 'mime': 'application/pdf', 'purpose': 'Ingreso',
           'financial': False, 'size': 10, 'created_at': '2026-11-10T12:00:00Z'}]
 STATE = {'denied': set(), 'finance': True, 'quotes': [], 'internal': False, 'status': 'Diagnóstico',
-         'active': None, 'open_timer': True, 'settled': False}
-BLOCKED, ERRORS, COMMANDS = [], [], []
+         'active': None, 'open_timer': True, 'settled': False, 'unbilled': False}
+BLOCKED, ERRORS, COMMANDS, BILLING = [], [], [], []
 
 
 def order():
@@ -52,7 +53,7 @@ def order():
 
 
 def case_file():
-    return {'vehicle': VEHICLE, 'financialAccess': STATE['finance'], 'orders': [order()],
+    result = {'vehicle': VEHICLE, 'financialAccess': STATE['finance'], 'orders': [order()],
             'reservations': [], 'commitments': [], 'files': FILES, 'quotes': STATE['quotes'],
             'inspections': [{'id': 'inspection', 'order_id': JOB['id'], 'km': 12000, 'fuel': 80,
                              'condition': 'Synthetic stored diagnosis', 'accessories': 'Keys',
@@ -69,6 +70,12 @@ def case_file():
             'payments': [{'id': 'receipt', 'paid_on': '2026-11-10', 'amount': 99999}],
             'advances': [{'id': 'advance', 'amount': 99999, 'available_amount': 7,
                           'paid_on': '2026-11-10', 'reference': 'Synthetic advance'}]}
+    if STATE['unbilled']:
+        # A freshly approved scope with nothing issued yet: the only document the
+        # operator could emit is the one the approval stage offers.
+        result['documents'] = []
+        result['applications'] = []
+    return result
 
 
 def protect(route):
@@ -107,6 +114,15 @@ def protect(route):
                                'openTimers': [{'id': 'timer'}] if STATE['open_timer'] else [],
                                'pendingEstimate': None, 'approvedEstimateId': STATE['active'],
                                'estimatedUnpaid': 70, 'balancePolicy': 'Synthetic fixture'})
+            return
+        if resource == 'execute_case_command':
+            assert body['command'] == 'bill_scope'
+            assert body['payload']['orderId'] == JOB['id']
+            assert body['payload']['date'] and body['payload']['dueOn']
+            assert body['idempotency_key']
+            BILLING.append(copy.deepcopy(body))
+            STATE['unbilled'] = False
+            route.fulfill(json={})
             return
         if resource == 'execute_estimate_command':
             assert body['command'] in ['approve', 'reject']
@@ -191,7 +207,13 @@ def main():
                 go(page, 'Aprobación')
                 expect(page.get_by_role('button', name='Descargar imagen para el cliente')).to_be_visible()
                 go(page, 'Costos')
-                expect(page.get_by_role('button', name='Synthetic acquired part')).to_be_visible()
+                expect(page.get_by_role('button', name=re.compile('Synthetic acquired part')).first).to_be_visible()
+                page.get_by_role('button', name=re.compile('Synthetic acquired part')).first.click()
+                # A pending cost shows its classification question on the card
+                # surface, without opening any collapsed detail.
+                expect(page.get_by_test_id('workshop-case')).to_contain_text('Pendiente de clasificar')
+                expect(page.get_by_test_id('workshop-case')).to_contain_text('¿Este costo está incluido en el presupuesto?')
+                expect(page.get_by_role('button', name='Guardar relación con el presupuesto')).to_be_visible()
                 collection = page.get_by_role('button', name=re.compile('^Registrar (cobro|anticipo)$')).first
                 expect(collection).to_be_visible()
                 brand = collection.evaluate('(b)=>getComputedStyle(b).backgroundColor')
@@ -202,6 +224,12 @@ def main():
                 go(page, 'Salida')
                 expect(page.get_by_role('button', name='Confirmar entrega revisada')).to_be_disabled()
                 expect(page.get_by_text('Cronómetros abiertos:')).to_contain_text('1')
+                # The delivery stage names every blocker instead of a generic count.
+                expect(page.get_by_test_id('workshop-case')).to_contain_text('Synthetic acquired part')
+                expect(page.get_by_test_id('workshop-case')).to_contain_text('clasificar en')
+                expect(page.get_by_role('link', name='Costos del trabajo')).to_be_visible()
+                expect(page.get_by_test_id('workshop-case')).to_contain_text('Tarea sin finalizar: Synthetic pending task')
+                expect(page.get_by_role('link', name=re.compile('revisar en Tareas'))).to_be_visible()
                 screenshot(page, 'delivery-review', width)
             page.set_viewport_size({'width': 1440, 'height': 1000})
             # The budget is editable in the folio: the editor mounts inline, with the
@@ -216,9 +244,9 @@ def main():
             budgetAction.click()
             expect(page.locator('.budget-line').first).to_be_visible()
             expect(page.get_by_label('Costo unitario 1', exact=True)).to_have_value('20')
-            expect(page.get_by_role('button', name='Definir precio al cliente →', exact=True)).to_be_visible()
+            submit = page.locator('.budget-actions button').filter(has_text='Definir precio')
+            expect(submit).to_be_visible()
             assert '/taller/ingreso/' in page.url, 'the editor must stay inside the folio'
-            submit = page.get_by_role('button', name='Definir precio al cliente →', exact=True)
             brand = submit.evaluate('(b)=>getComputedStyle(b).backgroundColor')
             assert brand != 'rgba(0, 0, 0, 0)', brand
             # The commit row keeps exactly one primary: the save is the only brand-red action.
@@ -237,6 +265,26 @@ def main():
             expect(page.get_by_role('region', name='Fases del trabajo')).to_contain_text('Trabajo acordado y vigente')
             assert len(COMMANDS) == 1
             screenshot(page, 'approved-work-guidance', 1440)
+            # After the approval decision the stage itself offers the issuance: the
+            # operator sees the next money action without navigating to Cobros.
+            STATE['unbilled'] = True
+            go(page, 'Aprobación')
+            card = page.locator('section[aria-label="Emitir importe a cobrar"]')
+            expect(card).to_be_visible()
+            expect(card).to_contain_text('Trabajo acordado aprobado: $100.00')
+            expect(card).to_contain_text('No recibe dinero ni cambia el costo.')
+            issue = card.get_by_role('button', name='Emitir importe a cobrar de $100.00', exact=True)
+            expect(issue).to_be_visible()
+            for width in [1440, 1024, 390, 320]:
+                page.set_viewport_size({'width': width, 'height': 1000})
+                screenshot(page, 'issue-after-approval', width)
+            page.set_viewport_size({'width': 1440, 'height': 1000})
+            issue.click()
+            expect(card).to_contain_text('El alcance aprobado ya tiene su documento de cobro emitido')
+            assert len(BILLING) == 1, 'the approval card issues exactly the existing bill_scope command'
+            assert BILLING[0]['payload']['orderId'] == JOB['id']
+            screenshot(page, 'issue-after-approval-issued', 1440)
+            assert STATE['unbilled'] is False
             for width in [1440, 1024, 390, 320]:
                 page.set_viewport_size({'width': width, 'height': 1000})
                 STATE['settled'] = False
@@ -350,6 +398,8 @@ def main():
             browser.close()
     result = {'passed': True, 'widths': [1440, 1024, 390, 320], 'realApiRequests': 0,
               'realBusinessWrites': 0, 'syntheticApprovalCommands': len(COMMANDS),
+              'syntheticIssuanceCommands': len(BILLING), 'issuanceOfferedAfterApproval': True,
+              'deliveryBlockersNamed': True,
               'permissionRevocation': True, 'serverFinancialFlag': True,
               'customerFiveInternalThreeStages': True, 'collectionsKeyboardNavigation': True,
               'settlementDoesNotCompleteWorkOrDelivery': True, 'deliveredDebtStillOutstanding': True,

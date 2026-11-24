@@ -16,6 +16,9 @@ export function CaseQuotes({file,job,onChange}:{file:CaseFile;job:CaseOrder;onCh
    const [imageBusy,setImageBusy]=useState(false);const [imageError,setImageError]=useState('');
   const quotes=(file.quotes??[]).filter(q=>q.order_id===job.id).sort((a,b)=>b.revision-a.revision);
   const latest=quotes[0];
+  // The approved scope is the only chargeable amount. The issuance itself is a
+  // prominent card of the stage template, so the operator sees it before the
+  // quote tables instead of hunting for it at the bottom of this list.
    if(!file.financialAccess||!can('expenses.read'))return <p className="inline-note">Información financiera restringida.</p>;
    return <section className="workshop-quotes" aria-label={`Presupuestos de ${folio('OT',job.id)}`}>
     <div className="quote-list-tools"><div><h2 className="font-semibold">Presupuestos del trabajo</h2><p className="field-hint mt-2">Cada versión contiene el alcance completo. Las versiones anteriores no se suman al total.</p></div>

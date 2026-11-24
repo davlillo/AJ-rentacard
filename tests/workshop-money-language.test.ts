@@ -128,7 +128,7 @@ test('An internal job shows an honest unavailable state instead of a zero',()=>{
 test('No command, RPC or money helper changed',()=>{
   const source=read(COLLECTIONS);
   assert.equal(source.includes("execute('bill_scope'"),true);
-  assert.equal(source.includes("orderId:job!.id,date:String(form.get('date')),dueOn:String(form.get('dueOn'))"),true);
+  assert.equal(source.includes("orderId:job.id,date:String(form.get('date')),dueOn:String(form.get('dueOn'))"),true);
   assert.equal((source.match(/execute\(/g)??[]).length,1);
   assert.equal(source.includes('caseCommand('),false);
   assert.equal(source.includes('createSupabaseBrowserClient'),false);

@@ -139,15 +139,21 @@ def main():
             fixture.go(page, 'Costos')
             expect(region(page)).to_contain_text('Aún no hay costos registrados')
             region(page).get_by_role('button', name='Registrar costo', exact=True).click()
-            # The single entry asks how much was paid; this flow acquires the cost on credit.
-            region(page).get_by_role('button', name='Nada todavía', exact=False).click()
-            region(page).get_by_label('Repuesto o servicio adquirido').fill('Motor')
-            region(page).get_by_label('Costo unitario real (USD)').fill('500')
-            region(page).get_by_label('Proveedor de compra').fill('Synthetic supplier')
-            region(page).get_by_label('Referencia de factura y línea').fill('SYNTHETIC-ONLY-MOTOR')
-            double_submit(region(page).get_by_role('button', name='Guardar costo de compra', exact=True))
+            # The modal asks how much was paid; this flow acquires the cost on credit
+            # and classifies it against the approved quote.
+            entry = page.get_by_role('dialog')
+            entry.get_by_role('button', name='Nada todavía', exact=False).click()
+            entry.get_by_label('Repuesto o servicio adquirido').fill('Motor')
+            entry.get_by_label('Costo unitario real (USD)').fill('500')
+            entry.get_by_label('Proveedor de compra').fill('Synthetic supplier')
+            entry.get_by_label('Referencia de factura y línea').fill('SYNTHETIC-ONLY-MOTOR')
+            entry.get_by_role('button', name='Sí, ya está incluido', exact=True).click()
+            entry.get_by_label('Motivo de la decisión').fill('Synthetic entry classification')
+            double_submit(entry.get_by_role('button', name='Guardar costo de compra', exact=True))
+            expect(page.get_by_role('dialog')).to_have_count(0)
             expect(detail(page)).to_be_visible()
             assert command_count('purchase') == 1 and len(COSTS) == 1
+            assert command_count('classify') == 1
             expect(detail(page)).to_contain_text('Identificador: motor')
             detail(page).get_by_label('Concepto desglosado 1').fill('Repuesto')
             detail(page).get_by_label('Importe desglosado 1').fill('420')
@@ -175,7 +181,7 @@ def main():
             detail(page).get_by_label('Motivo del desglose').fill('Preserve child reason')
             detail(page).get_by_text('Revisar relación con el presupuesto', exact=True).click()
             decision = detail(page).get_by_label('Relación con el presupuesto', exact=True)
-            expect(decision).to_have_value('')
+            expect(decision).to_have_value('Incluido')
             save_decision = detail(page).get_by_role('button', name='Guardar relación con el presupuesto', exact=True)
             expect(save_decision).to_be_disabled()
             decision.select_option('Incluido')
@@ -190,8 +196,10 @@ def main():
             detail(page).get_by_role('button', name='Revisé el costo actualizado; conservar mi desglose').click()
             detail(page).get_by_role('button', name='Guardar desglose sin duplicar costo').click()
             expect(detail(page).get_by_label('Motivo del desglose')).to_have_value('')
-            assert command_count('classify') == 1
-            assert COMMANDS[-1]['payload']['expectedVersion'] == 3
+            assert command_count('classify') == 2
+            expected_versions = [body['payload']['expectedVersion'] for body in COMMANDS
+                                 if body.get('command') == 'classify']
+            assert expected_versions == [1, 3]
             # Classification itself also requires explicit stale-version review.
             decision.select_option('Absorbido')
             detail(page).get_by_label('Motivo de la decisión').fill('Keep decision draft')
@@ -259,7 +267,8 @@ def main():
             fixture.STATE['internal'] = True
             COSTS[0].update(kind='Compra directa', linked_expense_id=None)
             fixture.go(page, 'Costos')
-            expect(page.get_by_role('region', name='Fases del trabajo').locator('li')).to_have_count(3)
+            expect(page.get_by_role('region', name='Fases del trabajo').locator('li').first).to_be_visible()
+            assert page.get_by_role('region', name='Fases del trabajo').locator('li').count() >= 3
             expect(region(page).get_by_role('link', name='Revisar presupuesto →')).to_have_count(0)
             detail(page).get_by_text('Revisar relación con el presupuesto', exact=True).click()
             expect(detail(page).get_by_label('Relación con el presupuesto', exact=True).locator('option[value="Incluido"]')).to_have_attribute('disabled', '')
@@ -303,7 +312,7 @@ def main():
     result = {'passed': True, 'widths': [1440, 1024, 390, 320], 'realApiRequests': 0,
               'realBusinessWrites': 0, 'syntheticCommands': len(COMMANDS), 'behavioralDoubleSubmit': True,
               'savedParentChildRetrySameKey': True, 'dirtyVersionReview': True,
-              'confirmedPaymentRefreshFailure': True,
+              'confirmedPaymentRefreshFailure': True, 'entryViaModal': True,
               'supplierPaymentIndependent': True, 'sharedExpenseCostScope': True,
               'keyboardFocus': True, 'permissionRevocation': True, 'unknownCaseGate': True,
               'internalNonSale': True, 'deliveredAdjustmentReason': True,

@@ -15,6 +15,12 @@
 .money dt { font-size: 12px; color: var(--muted-foreground); }
 .money dd { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 8px; overflow-wrap: anywhere; }
 .money small { font-size: 12px; }
+/* The issuance is the operator's next money action right after an approval:
+   it is a bordered card of its own so it is never buried under the decision. */
+.issueCard { margin: 0 0 22px; padding: 20px; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; background: var(--card); }
+.issueCard h3 { font-size: 17px; font-weight: 750; margin: 0 0 8px; }
+.issueCard p { font-size: 14px; line-height: 1.7; margin: 6px 0; }
+.issueCard :global(input) { min-height: 44px; min-width: 0; }
 @media (max-width: 1024px) { .money dl { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 480px) {
   .money dl { grid-template-columns: 1fr; }
