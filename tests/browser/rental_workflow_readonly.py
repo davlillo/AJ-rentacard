@@ -69,24 +69,27 @@ with sync_playwright() as p:
         page.locator('#aj-login-password').fill(env['AJ_LOCAL_OWNER_PASSWORD'])
         page.get_by_role('button', name='Ingresar', exact=True).click()
         expect(page.get_by_role('heading', name='Vehículos', exact=True)).to_be_visible()
-        expect(page.get_by_role('navigation', name='Navegación principal').get_by_role('link')).to_have_count(8)
+        expect(page.get_by_role('navigation', name='Navegación principal').get_by_role('link')).to_have_count(9)
         expect(page.get_by_role('tablist', name='Estado de la flota').get_by_role('tab')).to_have_count(4)
         page.locator('.vehicle-card').filter(has_text='P101-004').get_by_role('link', name='Ver expediente').click()
         expect(page.locator('.rental-operation h2')).to_contain_text('ALQ-00006')
         vehicle_url = page.url
         future_href = page.get_by_role('region', name='Reservas por entregar').get_by_role('link', name='Preparar entrega →').first.get_attribute('href')
         historical_href = None
-        page.get_by_role('button', name='Cobrar saldo · $100.00', exact=True).click()
+        # The collection control lives only in the Cuentas stage of the folio.
+        page.get_by_role('link', name='Abrir alquiler', exact=True).click()
+        page.get_by_role('button', name=re.compile('^Cuentas')).first.click()
+        page.get_by_role('button', name='Realizar cobro', exact=True).click()
         draft = page.get_by_role('dialog')
         expect(draft.locator('fieldset')).to_be_enabled()
-        draft.get_by_label('Importe del abono (USD)', exact=True).fill('25')
+        draft.get_by_label('Importe recibido (USD)', exact=True).fill('25')
         draft.get_by_label('Cuenta o caja receptora', exact=True).fill('Draft cash')
         draft.get_by_label('Referencia del pago', exact=True).fill('Keep this unsaved draft')
         with page.expect_response(lambda response: '/rpc/rental_case_file' in response.url):
             page.evaluate("window.dispatchEvent(new Event('focus'))")
         page.wait_for_load_state('networkidle')
         expect(draft).to_be_visible()
-        expect(draft.get_by_label('Importe del abono (USD)', exact=True)).to_have_value('25')
+        expect(draft.get_by_label('Importe recibido (USD)', exact=True)).to_have_value('25')
         expect(draft.get_by_label('Referencia del pago', exact=True)).to_have_value('Keep this unsaved draft')
         draft.get_by_role('button', name='Cerrar', exact=True).click()
         for width, height in [(1440, 1000), (768, 1024), (390, 844), (320, 740)]:
@@ -94,28 +97,29 @@ with sync_playwright() as p:
             page.goto(vehicle_url, wait_until='networkidle')
             current = page.locator('.rental-operation')
             expect(current.get_by_role('heading', name='ALQ-00006 · Daniel Torres', exact=True)).to_be_visible()
-            expect(current.locator('.rental-money dd')).to_have_text(['$180.00', '$80.00', '$100.00'])
+            expect(current.locator('.rental-money dd')).to_have_text(['$315.00', '$180.00', '$80.00', '$235.00'])
             expect(current.locator('[aria-current=step]')).to_have_text('2Alquilado')
             expect(page.get_by_role('region', name='Reservas por entregar')).to_contain_text('david hernandez')
-            expect(current).not_to_contain_text('$315.00')
             expect(page.locator('main')).not_to_contain_text(re.compile(r'\d{4}-\d\d-\d\dT\d\d:'))
             assert_fits(page, str(width) + 'px current rental and next reservation')
             page.screenshot(path=str(ROOT / f'vehicle-{width}.png'))
 
-            current.get_by_role('button', name='Cobrar saldo · $100.00', exact=True).click()
+            # The collection control lives only in the Cuentas stage of the folio.
+            current.get_by_role('link', name='Abrir alquiler', exact=True).click()
+            page.get_by_role('button', name=re.compile('^Cuentas')).first.click()
+            page.get_by_role('button', name='Realizar cobro', exact=True).click()
             dialog = page.get_by_role('dialog')
             expect(dialog.locator('fieldset')).to_be_enabled()
             expect(dialog).to_contain_text('Daniel Torres')
             expect(dialog).to_contain_text('ALQ-00006')
-            expect(dialog.get_by_label('Importe del abono (USD)', exact=True)).to_have_value('100.00')
-            expect(dialog.get_by_label('Destino del abono', exact=True).locator('option:checked')).to_contain_text('saldo $100.00')
-            assert dialog.get_by_label('Destino del abono', exact=True).locator('option').count() == 3
+            expect(dialog.get_by_label('Importe recibido (USD)', exact=True)).to_have_value('100.00')
+            expect(dialog.get_by_label('A qué documento se aplica el cobro', exact=True).locator('option:checked')).to_contain_text('saldo $100.00')
+            assert dialog.get_by_label('A qué documento se aplica el cobro', exact=True).locator('option').count() == 3
             assert_fits(page, str(width) + 'px contextual rental receipt')
             dialog.screenshot(path=str(ROOT / f'receipt-{width}.png'))
             dialog.get_by_role('button', name='Cerrar', exact=True).click()
 
             current.get_by_role('link', name='Registrar devolución', exact=True).click()
-            expect(page.get_by_role('button', name='Salida y devolución', exact=True)).to_have_attribute('aria-pressed', 'true')
             expect(page.get_by_role('heading', name='Registrar devolución del vehículo', exact=True)).to_be_visible()
             expect(page.get_by_role('button', name='Registrar devolución de alquiler', exact=True)).to_be_visible()
             assert_fits(page, str(width) + 'px return inspection')
@@ -123,9 +127,9 @@ with sync_playwright() as p:
 
             go(page, 'vehiculos/alquiler/?id=' + current_id)
             page.get_by_role('button', name='Registrar devolución', exact=True).click()
-            expect(page.get_by_role('button', name='Salida y devolución', exact=True)).to_have_attribute('aria-pressed', 'true')
             go(page, 'vehiculos/alquiler/?id=' + current_id + '&seccion=Limpieza')
-            expect(page.locator('main')).to_contain_text('Primero debe registrar la devolución')
+            # The release of the vehicle moved to its dossier; the folio only points to it.
+            expect(page.get_by_role('heading', name='Registrar devolución del vehículo', exact=True)).to_be_visible()
             expect(page.get_by_role('button', name='Confirmar limpieza y revisar disponibilidad', exact=True)).to_have_count(0)
             assert_fits(page, str(width) + 'px cleaning before return')
 
@@ -143,8 +147,8 @@ with sync_playwright() as p:
             historical_href = history.get_by_role('link', name='Abrir alquiler →').first.get_attribute('href')
             assert_fits(page, str(width) + 'px rental history')
             page.goto(APP + historical_href, wait_until='networkidle')
-            page.get_by_role('button', name='Limpieza', exact=True).click()
-            expect(page.locator('main')).to_contain_text('Limpieza revisada')
+            # The release of the vehicle is not in the rental folio any more.
+            expect(page.locator('#rental-cleaning')).to_have_count(0)
             expect(page.get_by_role('button', name='Confirmar limpieza y revisar disponibilidad', exact=True)).to_have_count(0)
             assert_fits(page, str(width) + 'px reviewed cleaning')
             print('PASS: current, future, receipt, return and cleaning at', width)
@@ -176,16 +180,14 @@ with sync_playwright() as p:
         for width in [1440, 320]:
             page.set_viewport_size({'width': width, 'height': 1000})
             go(page, 'vehiculos/alquiler/?id=' + current_id)
-            expect(page.locator('.rental-operation')).to_contain_text('Devuelto · limpieza pendiente')
-            expect(page.get_by_role('button', name='Cobrar saldo · $100.00', exact=True)).to_be_visible()
-            page.get_by_role('button', name='Finalizar limpieza', exact=True).click()
-            expect(page.get_by_role('button', name='Confirmar limpieza y revisar disponibilidad', exact=True)).to_be_visible()
-            page.get_by_label('Revisión de limpieza y condición para otra renta', exact=True).fill('Cleaning reviewed in an isolated view fixture')
+            expect(page.locator('.rental-operation')).to_contain_text('Devuelto · pendiente de liberar')
+            expect(page.get_by_role('button', name='Realizar cobro', exact=True)).to_have_count(0)
+            expect(page.get_by_role('button', name='Finalizar limpieza', exact=True)).to_have_count(0)
             assert_fits(page, str(width) + 'px isolated pending-cleaning form')
         reviewed = True
         go(page, 'vehiculos/alquiler/?id=' + current_id)
         expect(page.locator('.rental-operation')).to_contain_text('Alquiler finalizado')
-        expect(page.get_by_role('button', name='Cobrar saldo · $100.00', exact=True)).to_be_visible()
+        expect(page.get_by_role('button', name='Realizar cobro', exact=True)).to_have_count(0)
         expect(page.get_by_role('button', name='Finalizar limpieza', exact=True)).to_have_count(0)
         assert not blocked, blocked
         assert not errors, errors

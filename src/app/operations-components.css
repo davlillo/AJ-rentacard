@@ -1,0 +1,201 @@
+/* Inicio-derived component skin. Layout, permissions and native form semantics stay unchanged. */
+.operations-app,
+body:has(.operations-app) [role="dialog"] {
+  --ui-ink: #1c304b;
+  --ui-muted: #52657d;
+  --ui-line: #ced9e7;
+  --ui-control-line: #9aafc8;
+  --ui-blue: #2563eb;
+  --ui-teal: #087b70;
+  --ui-orange: #b7470e;
+  --ui-wash: #f5f8fc;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) {
+  color: var(--ui-ink);
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) :is(.form-field > span, label > span:first-child) {
+  color: var(--ui-ink);
+  font-weight: 650;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"])
+:is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"]), select, textarea) {
+  border: 1px solid var(--ui-control-line);
+  background-color: #fff;
+  color: var(--ui-ink);
+  box-shadow: inset 0 1px 2px #1c304b05;
+  min-height: 36px;
+  height: 36px;
+  padding: 7px 10px;
+  font-size: 13px;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) select:not([multiple]) {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23365379' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) :is(input, textarea)::placeholder {
+  color: #60738c;
+  opacity: 1;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) :is(input, select, textarea):hover:not(:disabled, [readonly]) {
+  border-color: #6385b0;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"])
+:is(input, select, textarea, button, a, summary):focus-visible {
+  outline: 3px solid #5485e5;
+  outline-offset: 2px;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) :is(input, select, textarea):disabled,
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) input[readonly] {
+  background-color: #edf1f6;
+  color: #5b6b7e;
+  border-color: #ced7e2;
+  box-shadow: none;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [aria-invalid="true"] {
+  border-color: #b4233d;
+  background-color: #fff7f8;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--ui-blue);
+  min-width: 18px;
+  min-height: 18px;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) input[type="file"]::file-selector-button {
+  background: #eef4ff;
+  color: #234f9b;
+  border: 1px solid #b4c8e5;
+  border-radius: 6px;
+  padding: 9px 12px;
+  margin-right: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) .search-field {
+  border-color: var(--ui-control-line);
+  background: #fff;
+  color: #526b89;
+  min-height: 36px;
+  height: 36px;
+  box-shadow: 0 1px 3px #1c304b05;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) .search-field input {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  min-height: 0;
+  height: 100%;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) .search-field:focus-within {
+  outline: 3px solid #5485e5;
+  outline-offset: 2px;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [class~="bg-primary"] {
+  box-shadow: 0 2px 5px #ba173324;
+  font-weight: 700;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [class~="inline-flex"] {
+  min-height: 36px;
+  height: auto;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  font-size: 13px;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) textarea:not([hidden]) {
+  height: auto;
+  min-height: 88px;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) input[type="file"] {
+  height: auto;
+  min-height: 44px;
+  padding: 6px;
+  line-height: 1.4;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) input[type="file"]::file-selector-button {
+  padding: 6px 10px;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+.selected-option-description {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #52657d;
+  overflow-wrap: anywhere;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) :is(.tabs, .module-tabs) button {
+  min-height: 36px;
+  padding-block: 7px;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [class~="border-input"] {
+  border-color: #9aafc8;
+  color: #294b75;
+  background: #fff;
+  box-shadow: 0 1px 3px #1c304b06;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [class~="border-input"]:hover:not(:disabled) {
+  border-color: #6385b0;
+  background: #edf3fc;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [class~="inline-flex"][class~="text-muted-foreground"]:not(:disabled) {
+  color: #345780;
+}
+:is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) button:disabled {
+  opacity: 1;
+  color: #6b7788;
+  background-color: #edf1f6;
+  border-color: #d1d9e3;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) .panel {
+  border-color: var(--ui-line);
+  border-radius: 12px;
+  box-shadow: 0 3px 12px #1c304b07;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) :is(.tabs, .module-tabs) button {
+  color: #52657d;
+  font-weight: 600;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) :is(.tabs, .module-tabs) button.active {
+  color: var(--ui-ink);
+  font-weight: 750;
+  background: #f0f5ff;
+  border-bottom-color: #d72439;
+}
+.operations-app .page-content:not(:has(.business-dashboard)) :is(.tabs, .module-tabs) button:hover:not(.active) {
+  background: #f5f8fc;
+  color: #284e7b;
+}
+body:has(.operations-app) [role="dialog"] {
+  border-color: var(--ui-line);
+  background: #fff;
+  box-shadow: 0 20px 70px #1c304b26;
+}
+body:has(.operations-app) [role="dialog"] > h2 { color: var(--ui-ink); font-weight: 800; }
+body:has(.operations-app) [role="dialog"] > p { color: var(--ui-muted); }
+.operations-app .vehicle-case :is(.detail-list dt, .operation-amounts dt) { color: #52657d; font-weight: 600; }
+.operations-app .vehicle-case .detail-list dd { color: var(--ui-ink); font-weight: 650; }
+.operations-app .vehicle-case .detail-list > div { border-bottom-color: #d9e2ed; }
+.operations-app .vehicle-case .case-money { border-color: #bdcde0; background: #f8fafd; }
+.operations-app .vehicle-case .operation-amounts dd { color: var(--ui-ink); font-weight: 800; }
+.operations-app .vehicle-case .operation-amounts .amount-paid { color: var(--ui-teal); }
+.operations-app .vehicle-case .amount-outstanding { background: #fff5ed; }
+.operations-app .vehicle-case .amount-outstanding dd { color: var(--ui-orange); }
+.operations-app .vehicle-case .panel > :is(h2, h3, summary) { color: var(--ui-ink); font-weight: 750; }
+.operations-app .vehicle-case .inline-note { border: 1px solid #d5dfec; background: #f7f9fc; color: #405772; }
+@media (max-width: 600px) {
+  :is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"])
+  :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"]), select, textarea) { font-size: 16px; min-height: 44px; height: auto; }
+  :is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) textarea:not([hidden]) { min-height: 88px; }
+  .operations-app .page-content:not(:has(.business-dashboard)) .search-field { min-height: 44px; height: 44px; }
+  :is(.operations-app .page-content:not(:has(.business-dashboard)), body:has(.operations-app) [role="dialog"]) [class~="inline-flex"],
+  .operations-app .page-content:not(:has(.business-dashboard)) :is(.tabs, .module-tabs) button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.operations-app, body:has(.operations-app) [role="dialog"]) :is(input, select, textarea) { transition: none; }
+}

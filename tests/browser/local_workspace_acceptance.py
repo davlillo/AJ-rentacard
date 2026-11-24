@@ -69,7 +69,7 @@ def main(phase: str) -> None:
             page.wait_for_load_state('networkidle')
             keys = page.evaluate('Object.keys(localStorage).filter(key => key.startsWith("sb-"))')
             assert len(keys) == 1 and keys[0] != 'sb-aj-showcase-auth-token'
-            expect(page.get_by_role('navigation', name='Navegación principal').get_by_role('link')).to_have_count(8)
+            expect(page.get_by_role('navigation', name='Navegación principal').get_by_role('link')).to_have_count(9)
             page.reload(wait_until='networkidle')
             expect(page.get_by_role('heading', name='Resumen del negocio', exact=True)).to_be_visible()
 

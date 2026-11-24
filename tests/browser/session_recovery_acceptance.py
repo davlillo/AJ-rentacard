@@ -26,7 +26,7 @@ def main() -> None:
 
         def dashboard(page) -> None:
             expect(page.get_by_role('heading', name='Resumen del negocio', exact=True)).to_be_visible()
-            expect(page.get_by_role('navigation', name='Navegación principal').get_by_role('link')).to_have_count(8)
+            expect(page.get_by_role('navigation', name='Navegación principal').get_by_role('link')).to_have_count(9)
             expect(page.locator('.business-metric small')).to_have_text(' / 27')
             page.wait_for_load_state('networkidle')
             assert not page.get_by_text('No se pudo cargar la sesión operativa.', exact=False).count()

@@ -48,9 +48,9 @@ def main() -> None:
             expect(page.get_by_role('heading', name='Resumen del negocio', exact=True)).to_be_visible()
             page.wait_for_load_state('networkidle')
             nav = page.get_by_role('navigation', name='Navegación principal', exact=True)
-            expect(nav.get_by_role('link')).to_have_count(8)
+            expect(nav.get_by_role('link')).to_have_count(9)
             assert nav.get_by_role('link').all_text_contents() == [
-                'Inicio', 'Clientes', 'Vehículos', 'Calendario', 'Taller', 'Presupuestos', 'Cargos y cobros', 'Libro diario']
+                'Inicio', 'Clientes', 'Vehículos', 'Calendario', 'Alquileres', 'Taller', 'Presupuestos', 'Cobros', 'Libro diario']
             expect(page.locator('.business-metric')).to_have_count(4)
             assert 'Supabase' not in page.locator('main').inner_text()
 

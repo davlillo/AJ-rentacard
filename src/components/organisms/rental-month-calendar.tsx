@@ -9,6 +9,7 @@ import {monthDays,shiftMonth,intersectsDay,calendarDate} from '@/controladores/m
 import type {Vehicle} from '@/types';
 import type {Reservation,Commitment} from '@/lib/supabase/reservations';
 import {rentalDateTime,rentalWorkflow} from '@/controladores/rental-workflow';
+import styles from './rental-month-calendar.module.css';
 
 export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,onBlock,month:controlledMonth,onMonthChange,onFocusDate}:{
   vehicles:Vehicle[];reservations:Reservation[];commitments:Commitment[];onOpen:(id:string)=>void;onBlock:(block:Commitment)=>void;
@@ -29,7 +30,7 @@ export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,on
   const period=(start:string,end:string)=>`Entrega: ${rentalDateTime(start)} · Devolución: ${rentalDateTime(end)}`;
   function select(id:string,focusStart=true){const booking=bookings.find(r=>r.id===id);if(!booking)return;
     setSelected(id);if(focusStart){const day=calendarDate(booking.starts_at);setMonth(day.slice(0,7));onFocusDate?.(day);}}
-  return <div className="rental-calendar-layout"><section className="panel month-calendar" aria-label="Calendario mensual de vehículos">
+  return <div className={styles.layout}><section className="panel month-calendar" aria-label="Calendario mensual de vehículos">
     <header><div><span className="section-kicker">DISPONIBILIDAD DE LA FLOTA</span><h2>{new Date(month+'-01T12:00:00Z').toLocaleDateString('es-SV',{month:'long',year:'numeric',timeZone:'America/El_Salvador'})}</h2></div>
       <div className="month-calendar-controls"><button aria-label="Mes anterior" onClick={()=>setMonth(shiftMonth(month,-1))}><ChevronLeft size={18}/></button>
         <button onClick={()=>{setMonth(today.slice(0,7));onFocusDate?.(today);}}>Hoy</button><button aria-label="Mes siguiente" onClick={()=>setMonth(shiftMonth(month,1))}><ChevronRight size={18}/></button></div></header>
@@ -48,8 +49,8 @@ export function RentalMonthCalendar({vehicles,reservations,commitments,onOpen,on
       </div>;
     })}</div>
     <footer className="calendar-legend"><span><i className="legend-reserved"/>Reservado</span><span><i className="legend-rented"/>Alquilado</span><span><i className="legend-blocked"/>Taller / bloqueo</span></footer>
-  </section><aside className="panel calendar-reservations" aria-label="Reservas por vehículo"><header><CalendarDays size={19}/><div><h2>Reservas y alquileres</h2><p>Seleccione uno para marcar sus fechas.</p></div></header>
-    <div>{page.items.map(r=>{const car=vehicles.find(v=>v.id===r.vehicle_id);return <article key={r.id} className={selected===r.id?'calendar-booking selected':'calendar-booking'}>
+  </section><aside className={`panel calendar-reservations ${styles.reservations}`} aria-label="Reservas por vehículo"><header><CalendarDays size={19}/><div><h2>Reservas y alquileres</h2><p>Seleccione uno para marcar sus fechas.</p></div></header>
+    <div className={styles.bookings}>{page.items.map(r=>{const car=vehicles.find(v=>v.id===r.vehicle_id);return <article key={r.id} className={`calendar-booking ${styles.booking}${selected===r.id?' selected':''}`}>
       <button className="calendar-booking-select" aria-pressed={selected===r.id} onClick={()=>select(r.id)}>
         <VehicleImage vehicleId={r.vehicle_id} plate={car?.plate??''} fileId={car?.primaryPhotoId} size="thumbnail"/>
         <div><strong>{car?.plate||'Sin placa'} · {car?.brand} {car?.model}</strong><span>{r.customer_snapshot.name}</span></div>

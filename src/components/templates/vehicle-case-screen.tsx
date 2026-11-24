@@ -4,38 +4,25 @@ import {useSearchParams} from 'next/navigation';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useBusiness} from '@/hooks/use-business';
 import {useCaseAction} from '@/hooks/use-case-action';
-import {PageHeading} from '@/components/molecules/page-heading';
 import {Button} from '@/components/ui/button';
 import {VehiclePhoto} from '@/components/atoms/vehicle-photo';
-import {WorkshopCosts} from '@/components/organisms/workshop-costs';
-import {WorkshopDeliveryReview} from '@/components/organisms/workshop-delivery';
-import {TaskBoard} from '@/components/organisms/task-board';
-import {CaseQuotes} from '@/components/organisms/case-quotes';
-import {CaseCostAllocations} from '@/components/organisms/case-cost-allocations';
-import {CasePayments} from '@/components/organisms/case-payments';
-import {VehicleImage} from '@/components/organisms/vehicle-image';
-import {loadCase,findOrderVehicle,orderHref,vehicleHref,readVehicleFile,uploadVehicleFile,type CaseFile} from '@/lib/supabase/cases';
-import {money} from '@/controladores/finanzas';
-import {folio} from '@/controladores/folios';
+import {loadCase,findOrderVehicle,readVehicleFile,uploadVehicleFile,type CaseFile} from '@/lib/supabase/cases';
 import {RegistryDetails} from '@/components/organisms/registry-details';
-import {operationMoney} from '@/controladores/operation-money';
-import {RefreshCw} from 'lucide-react';
-import {diaryHref} from '@/controladores/linked-money';
-import {VehicleRentals} from '@/components/organisms/vehicle-rentals';
 import {rentalDateTime} from '@/controladores/rental-workflow';
 import {VehicleReviewField,VehicleReviewNotes} from '@/components/organisms/vehicle-review';
+import {VehicleDossier} from './vehicle-dossier';
+import {sanitizedDossierFile} from '@/controladores/vehicle-dossier';
+import {receptionPayload} from '@/controladores/workshop-reception';
+import {WorkshopCaseScreen} from './workshop-case-screen';
 
 export function VehicleCaseScreen({scope='vehicle'}:{scope?:'vehicle'|'order'}){
   const id=useSearchParams().get('id')??'';
   return <CaseContent key={`${scope}:${id}`} scope={scope} id={id}/>;
 }
 function CaseContent({scope,id}:{scope:'vehicle'|'order';id:string}){
-  const {data,can,source,refresh,modal,open,toast}=useBusiness();
-  const [file,setFile]=useState<CaseFile|null>(null);const [error,setError]=useState('');const [tab,setTab]=useState('Resumen');
-  const [refreshing,setRefreshing]=useState(false);
+  const {data,can,source,refresh,modal}=useBusiness();
+  const [file,setFile]=useState<CaseFile|null>(null);const [error,setError]=useState('');
   const readRevision=useRef(0);
-  const requestedSection=useSearchParams().get('seccion');
-  useEffect(()=>{if(requestedSection&&['Resumen','Ingresos','Alquileres','Recepción','Presupuestos','Costos','Cargos y abonos','Fotos y documentos','Tareas','Salida','Datos de flota'].includes(requestedSection))setTab(requestedSection);},[requestedSection]);
   const order=scope==='order'?data.orders.find(order=>order.id===id):undefined;
   const [resolvedVehicleId,setResolvedVehicleId]=useState<string>();
   const vehicleId=scope==='vehicle'?id:order?.vehicleId??resolvedVehicleId;
@@ -62,103 +49,53 @@ function CaseContent({scope,id}:{scope:'vehicle'|'order';id:string}){
   if(error&&!file)return <section className="panel p-5"><p role="alert" className="form-error">{error}</p>
     <Button variant="outline" onClick={()=>{void reload().catch(error=>setError(error.message));}}>Reintentar consulta</Button></section>;
   if(!file)return <p role="status">{scope==='order'&&id&&!order?'Buscando ingreso en el registro autorizado…':'Cargando expediente…'}</p>;
-  const car=file.vehicle;const job=scope==='order'?file.orders[0]:undefined;
-  const tabs=job?['Resumen','Recepción','Presupuestos','Costos','Cargos y abonos','Fotos y documentos','Tareas','Salida']:
-    ['Resumen','Ingresos','Alquileres','Costos','Cargos y abonos','Fotos y documentos','Datos de flota'];
-  const financial=['Presupuestos','Costos','Cargos y abonos'];
-  const costs=(file.costs??[]).reduce((sum,c)=>sum+Number(c.amount),0);
-  const charges=(file.documents??[]).reduce((sum,d)=>sum+Number(d.scope_amount),0);
-  const balance=(file.documents??[]).reduce((sum,d)=>sum+Number(d.scope_balance),0);
-  const amounts=operationMoney(file,job?.id);
-  const internalQuote=!!amounts.quote&&file.orders.some(o=>o.id===amounts.quote?.order_id&&o.internal_job);
-  const cover=file.files.filter(f=>f.mime.startsWith('image/')&&!f.financial).sort((a,b)=>
-    Number(b.purpose==='Vehículo')-Number(a.purpose==='Vehículo')||b.created_at.localeCompare(a.created_at))[0]?.id??data.vehicles.find(v=>v.id===car.id)?.primaryPhotoId;
-  return <>
-    <nav aria-label="Ubicación del expediente" className="mb-5"><Link href="/vehiculos">Vehículos</Link> / <Link href={vehicleHref(car.id)}>{car.plate||`${car.brand} ${car.model}`}</Link>
-      {job&&<> / {folio('OT',job.id)}</>}</nav>
-    <PageHeading eyebrow={job?'PLIEGO POR INGRESO / HISTORIA INDEPENDIENTE':'EXPEDIENTE PERMANENTE DEL VEHÍCULO'}
-      title={job?`${folio('OT',job.id)} · ${car.plate||car.brand+' '+car.model}`:`${car.plate?car.plate+' · ':''}${car.brand} ${car.model}`}
-      description={job?`${job.service} · ${job.status}`:`${car.year}${car.color?' · '+car.color:''} · ${car.in_rental_fleet?'Flota de alquiler':'Vehículo de taller'}`}
-      actions={<Button variant="outline" disabled={refreshing} onClick={()=>{
-        setRefreshing(true);void onChange().then(()=>toast('Expediente actualizado.')).catch(error=>setError(error.message)).finally(()=>setRefreshing(false));
-      }}><RefreshCw size={15} className={refreshing?'animate-spin':''}/>{refreshing?'Actualizando…':'Actualizar expediente'}</Button>}/>
-    <nav className="tabs mb-5 flex-wrap" aria-label="Secciones del expediente">{tabs.filter(t=>!financial.includes(t)||file.financialAccess).map(t=>
-      <button key={t} className={tab===t?'active':''} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
-    {tab==='Resumen'&&!job&&car.in_rental_fleet&&<VehicleRentals file={file} onChange={onChange}/>}
-    {tab==='Resumen'&&<section className={`panel p-5 ${!job&&car.in_rental_fleet?'mt-5':''}`}>
-      <div className="case-overview"><VehicleImage vehicleId={car.id} plate={car.plate} fileId={cover} size="detail" editable onChange={onChange}/>
-        <dl className="detail-list"><div><dt>Vehículo</dt><dd>{car.brand} {car.model} · {car.plate}</dd></div>
-          <div><dt>{job?'Estado del trabajo':'Estado del vehículo'}</dt><dd>{job?.status??car.status}</dd></div><div><dt>Titular registral</dt><dd>{car.registered_holder||'Pendiente de registrar'}</dd></div>
-          <div><dt>Línea comercial</dt><dd>{car.commercial_line||'Sin clasificar'}</dd></div><div><dt>Kilometraje actual</dt><dd>{car.unverified_fields?.includes('km')?'Por confirmar':`${car.km.toLocaleString()} km`}</dd></div>
-          {job&&<><div><dt>Cliente / destino</dt><dd>{job.internal_job?'Mantenimiento interno':data.customers.find(c=>c.id===job.customer_id)?.name??'Sin acceso al cliente'}</dd></div>
-            <div><dt>Fecha del ingreso</dt><dd>{job.status==='Presupuesto'?'Aún no se ha recibido':new Date(job.occurred_at).toLocaleString('es-SV',{timeZone:'America/El_Salvador'})}</dd></div>
-            <div><dt>Recepción pendiente</dt><dd>{job.pending_fields.join(', ')||'Completa'}</dd></div></>}
-         </dl></div>
-      {can('vehicles.write')&&<RegistryDetails vehicle={car} onChange={onChange}/>}
-       {file.financialAccess&&<details open={job?true:undefined} className="mt-5"><summary className="font-semibold">{job?'Importes de este trabajo':'Totales históricos del vehículo (incluyen operaciones anteriores)'}</summary>
-         {!job&&<p className="field-hint mt-3">Estos totales no son el saldo del alquiler actual. Abra cada alquiler o ingreso para consultar y cobrar su operación.</p>}
-         {job&&<p className="inline-note mt-5"><strong>{amounts.deliveredWithBalance?'Entregado con saldo por cobrar':amounts.collectionState}</strong>
-           {!!amounts.pendingCosts&&` · ${amounts.pendingCosts} costos por revisar en el presupuesto.`}
-           {!!amounts.advances&&` · Anticipos disponibles sin aplicar: ${money(amounts.advances)}.`}</p>}
-         <dl className="operation-amounts case-money"><div><dt>{internalQuote?'Costo presupuestado':job?'Presupuesto':'Último presupuesto'}</dt><dd>{amounts.quoted===null?'Sin presupuesto':
-           internalQuote?(amounts.quote?.snapshot.costComplete===false?'Por completar':money(amounts.quote?.snapshot.cost??0)):money(amounts.quoted)}</dd>
-           <small>{internalQuote?'Mantenimiento interno, no es una venta':amounts.quote?.status??'Por preparar'}</small></div>
-        <div><dt>Costos del trabajo</dt><dd>{money(costs)}</dd><small>Pagado en caja: {money(amounts.cashOut)}</small></div><div><dt>Cargos emitidos</dt><dd>{money(charges)}</dd></div>
-        <div><dt>Abonos aplicados</dt><dd className="amount-paid">{money(amounts.paid)}</dd></div><div className="amount-outstanding"><dt>Por cobrar</dt><dd>{charges?money(balance):'Sin cargo'}</dd></div></dl>
-        {job&&<div className="case-money-links">{amounts.quote&&<Link href={`/presupuestos/?id=${amounts.quote.id}`}>Ver presupuesto →</Link>}
-          <Link href={`/cobros/?operacion=${encodeURIComponent(job.id)}`}>Ver cargos y abonos →</Link><Link href={`/libro-diario/?operacion=${encodeURIComponent(job.id)}`}>Ver movimientos en diario →</Link></div>}</details>}
-      {!job&&can('orders.write')&&<Button className="mt-4" disabled={!['Disponible','Por confirmar'].includes(car.status)} onClick={()=>open('orden',car.id)}>Registrar otro ingreso independiente</Button>}
-    </section>}
-    {tab==='Recepción'&&job&&<CaseReception file={file} orderId={job.id} onChange={onChange}/>}
-    {tab==='Ingresos'&&<section className="panel p-5"><h2 className="text-lg font-semibold">Ingresos y trabajos independientes</h2>
-      {file.orders.map(o=><article key={o.id} className="inline-note mt-4"><Link href={orderHref(o.id)}>{folio('OT',o.id)} · {o.service}</Link>
-        <p>{o.status} · {o.status==='Presupuesto'?'Sin recepción física':new Date(o.occurred_at).toLocaleDateString('es-SV')} · {o.internal_job?'Interno':'Cliente'}</p></article>)}
-      {!file.orders.length&&<p className="mt-4">Este vehículo aún no tiene ingresos de taller.</p>}
-    </section>}
-    {tab==='Alquileres'&&<><VehicleRentals file={file} onChange={onChange}/><details className="panel p-5 mt-5"><summary className="font-semibold">Bloqueos y compromisos de la agenda</summary>
-      {file.commitments.filter(c=>c.active).map(c=><p key={c.id} className="mt-3">
-        {c.kind} · Desde {rentalDateTime(c.starts_at)} · Hasta {rentalDateTime(c.ends_at)} · {c.reason}</p>)}
-      <Link className="text-link" href="/vehiculos/bloqueos/">Revisar bloqueos →</Link>
-    </details></>}
-    {tab==='Presupuestos'&&job&&file.financialAccess&&<section className="panel p-5"><CaseQuotes file={file} job={job} onChange={onChange}/></section>}
-    {tab==='Costos'&&file.financialAccess&&<section className="panel p-5">
-      {job?<><WorkshopCosts orderId={job.id} onChange={onChange}/>
-        {can('expenses.write')&&job.status!=='Entregado'&&<CaseCostAllocations file={file} onChange={onChange}/>}</>:
-        <><h2 className="font-semibold">Costos de taller por ingreso</h2>{file.orders.map(o=><p className="mt-4" key={o.id}>
-          <Link href={orderHref(o.id)}>{o.id} · {o.service}</Link> · {money((file.costs??[]).filter(c=>c.order_id===o.id).reduce((s,c)=>s+Number(c.amount),0))}</p>)}</>}
-      <h3 className="font-semibold mt-5">Egresos de caja vinculados (no sumar nuevamente al costo)</h3>
-      {(file.expenses??[]).map(e=><p key={e.id} className="inline-note mt-3">{e.date} · {e.id} · {e.concept} · {money(e.scope_amount??e.amount)} · {e.account}
-        {e.shared&&<> · Comprobante completo: {money(e.amount)}; aquí se cuenta solo la parte de este expediente.</>}
-        <br/><Link className="text-link" href={diaryHref(job?.id,'expense:'+e.id,e.date)}>Ver salida original en Libro diario →</Link></p>)}
-      {can('expenses.write')&&<Button className="mt-5" onClick={()=>open('gasto',job?.id??`vehicle:${car.id}`)}>Registrar gasto en este {job?'ingreso':'vehículo'}</Button>}
-    </section>}
-    {tab==='Cargos y abonos'&&file.financialAccess&&<section className="panel p-5"><CasePayments file={file} job={job} onChange={onChange}/></section>}
-    {tab==='Fotos y documentos'&&<CaseFiles file={file} orderId={job?.id} onChange={onChange}/>}
-    {tab==='Tareas'&&job&&can('tasks.read')&&<section className="panel p-5"><TaskBoard orderId={job.id}/></section>}
-    {tab==='Salida'&&job&&<section className="panel p-5">{car.in_rental_fleet&&<p className="inline-note mb-4">La entrega de taller no confirma limpieza ni disponibilidad para renta. <Link href="/vehiculos/bloqueos">Programe y revise la liberación en Bloqueos.</Link></p>}
-      {can('expenses.write')?<WorkshopDeliveryReview orderId={job.id} onChange={onChange}/>:
-      <p>La revisión final requiere autorización financiera. Estado actual: {job.status}.</p>}</section>}
-    {tab==='Datos de flota'&&<FleetData file={file} onChange={onChange}/>}
-    {error&&<p role="alert" className="form-error mt-4">{error}</p>}
-  </>;
+  if(scope==='vehicle')return <VehicleDossier file={sanitizedDossierFile(file,can('expenses.read'))}
+    onChange={onChange} filesSlot={<CaseFiles file={sanitizedDossierFile(file,can('expenses.read'))} onChange={onChange}/>}
+    administrationSlot={can('vehicles.write')?<><RegistryDetails vehicle={file.vehicle} onChange={onChange}/>
+      <FleetData file={sanitizedDossierFile(file,can('expenses.read'))} onChange={onChange}/></>:null}/>;
+  const job=file.orders.find(order=>order.id===id);
+  if(!job)return <p role="alert" className="form-error">El ingreso no está disponible en este expediente.</p>;
+  return <WorkshopCaseScreen file={sanitizedDossierFile(file,can('expenses.read'))} job={job} onChange={onChange}
+    receptionSlot={<CaseReception file={file} orderId={job.id} onChange={onChange}/>}
+    filesSlot={<CaseFiles file={sanitizedDossierFile(file,can('expenses.read'))} orderId={job.id} onChange={onChange}/>}
+    error={error}/>;
 }
 
 function CaseReception({file,orderId,onChange}:{file:CaseFile;orderId:string;onChange:()=>Promise<void>}){
   const {can}=useBusiness();const {busy,error,execute}=useCaseAction(onChange);
+  const [formError,setFormError]=useState('');
   const inspection=file.inspections.find(i=>i.order_id===orderId);
+  const knownKm=Number.isFinite(file.vehicle.km)?Math.max(0,Math.trunc(file.vehicle.km)):0;
   return <section className="panel p-5"><h2 className="font-semibold">Inspección de ingreso</h2>
     {inspection?<div className="mt-4"><VehicleReviewNotes {...inspection}/></div>:
       can('orders.write')&&<form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
-        void execute('intake',{orderId,km:null,fuel:null,condition:String(f.get('review')).trim(),accessories:''});
-      }}><VehicleReviewField/>
+        try{
+          const payload=receptionPayload(orderId,{km:String(f.get('km')),fuel:String(f.get('fuel')),
+            accessories:String(f.get('accessories')),review:String(f.get('review'))},knownKm);
+          setFormError('');
+          void execute('intake',payload);
+        }catch(cause){setFormError((cause as Error).message);}
+      }}>
+        <div className="form-grid">
+          <label className="form-field"><span>Kilometraje (km)</span><input name="km" type="number" required min={knownKm} step="1" defaultValue={knownKm}
+            aria-label="Kilometraje de ingreso (km)"/></label>
+          <label className="form-field"><span>Combustible (%)</span><input name="fuel" type="number" required min="0" max="100" step="0.01"
+            aria-label="Combustible de ingreso (%)" placeholder="Por ejemplo, 75"/></label>
+        </div>
+        <label className="form-field"><span>Accesorios y herramientas (opcional)</span><input name="accessories" maxLength={2000}
+          aria-label="Accesorios de ingreso" placeholder="Llanta de repuesto,aires, documentos, herramientas"/></label>
+        <VehicleReviewField/>
         <p className="inline-note">La inspección queda congelada. Las fotos de ingreso se cargan en Fotos y documentos.</p>
         <Button type="submit" disabled={busy}>Guardar inspección del ingreso</Button>
-      </form>}{error&&<p role="alert" className="form-error">{error}</p>}
+      </form>}{(error||formError)&&<p role="alert" className="form-error">{error||formError}</p>}
   </section>;
 }
 
-export function CaseFiles({file,orderId,reservationId,onChange}:{file:CaseFile;orderId?:string;reservationId?:string;onChange:()=>Promise<void>}){
+export function CaseFiles({file,orderId,reservationId,onChange,submitVariant}:{file:CaseFile;orderId?:string;reservationId?:string;onChange:()=>Promise<void>;submitVariant?:'default'|'outline'}){
   const {can}=useBusiness();const {busy,error,execute}=useCaseAction(onChange);
+  // One primary action per screen. The rental closing stage already owns one
+  // (Guardar versión de contrato), so the shared upload submit is secondary there.
+  const uploadVariant=submitVariant??(reservationId?'outline':'default');
   return <section className="panel p-5"><h2 className="font-semibold">Fotos y documentos</h2>
     {can('orders.write')&&<form className="operation-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;const f=new FormData(form);const upload=f.get('file');
       if(!(upload instanceof File))return;
@@ -169,7 +106,7 @@ export function CaseFiles({file,orderId,reservationId,onChange}:{file:CaseFile;o
         <option>Vehículo</option>{(orderId||reservationId)&&<><option>Ingreso</option><option>Salida</option></>}<option>Soporte</option></select></label>
       {can('expenses.write')&&<label><input name="financial" type="checkbox"/> Soporte financiero (restringir su consulta)</label>}
       <p className="field-hint">Los PDF se registran como Soporte.</p>
-      <Button type="submit" disabled={busy}>Guardar archivo en este expediente</Button></form>}
+      <Button type="submit" variant={uploadVariant} disabled={busy}>Guardar archivo en este expediente</Button></form>}
     <div className="vehicle-grid mt-5">{file.files.map(f=><article className="panel p-4" key={f.id}>
       {f.mime.startsWith('image/')&&<VehiclePhoto fileId={f.id} plate={file.vehicle.plate}/>}
       <h3 className="font-semibold">{f.name}</h3><p>{f.purpose} · {f.order_id??(f.reservation_id?'Alquiler':'Expediente permanente')} · {rentalDateTime(f.created_at)}</p>

@@ -1,0 +1,87 @@
+.editor {
+  --estimate-ink: #243c5a;
+  --estimate-border: #b9c8da;
+  --estimate-focus: #315d89;
+  border-color: #c5d2e2;
+  box-shadow: 0 4px 18px #243c5a08;
+}
+.contextTabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; }
+.contextBack { display: block; margin-top: 12px; }
+.contextTabs button { min-height: 44px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; text-align: left; cursor: pointer; }
+.contextTabs button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
+.contextTabs button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.costContext { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--primary); padding: 18px; margin-bottom: 16px; border-radius: 8px; }
+.costContext p { font-size: 13px; line-height: 1.6; margin-top: 8px; overflow-wrap: anywhere; }
+.costContext summary { cursor: pointer; color: #344d69; font-size: 13px; font-weight: 650; margin-top: 10px; }
+.costContext summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.editor :global(.budget-paper-heading) {
+  border-bottom-color: #c5d2e2;
+}
+.editor :global(.budget-paper-heading) h2 { color: var(--estimate-ink); }
+.editor :global(.form-field) > span {
+  color: #344d69;
+  font-size: 13px;
+  font-weight: 650;
+}
+.editor input:not([type="checkbox"]), .editor select, .editor textarea {
+  border: 1px solid var(--estimate-border);
+  background-color: #fff;
+  color: #233c59;
+  box-shadow: inset 0 1px 2px #20395806;
+  min-height: 36px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.editor input::placeholder, .editor textarea::placeholder { color: #697c92; }
+.editor :is(input, select, textarea):hover:not(:disabled) { border-color: #7e98b7; }
+.editor :is(input, select, textarea):focus-visible {
+  border-color: var(--estimate-focus);
+  outline: 2px solid var(--estimate-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #315d8910;
+}
+.editor :is(input, select, textarea):disabled { background-color: #eef2f6; color: #5d7086; }
+.editor :global(.budget-internal) {
+  color: #344d69;
+  font-weight: 550;
+}
+.editor input[type="checkbox"] { accent-color: var(--estimate-focus); width: 18px; height: 18px; }
+.editor :global(.budget-line) {
+  grid-template-columns: minmax(150px, 2fr) minmax(110px, 1.1fr) minmax(65px, .6fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(90px, .85fr) 44px;
+  border: 1px solid #c9d6e6;
+  border-radius: 9px;
+  background: #f3f6fb;
+  padding: 16px;
+}
+.editor :global(.budget-line).internalLine { grid-template-columns: minmax(150px, 2fr) minmax(110px, 1.1fr) minmax(65px, .6fr) minmax(100px, 1fr) minmax(90px, .85fr) 44px; }
+.editor .loss strong { color: #ad3046; }
+.editor :global(.budget-line-total) strong { color: var(--estimate-ink); font-size: 17px; }
+.editor :global(.budget-line-cost) summary { color: #365e85; font-weight: 600; }
+.editor :global(.text-link) { color: #315d89; font-weight: 600; }
+.editor :global(.budget-tally) {
+  background: #edf3fa;
+  border: 1px solid #c7d6e8;
+  border-radius: 9px;
+  padding: 12px 18px;
+  margin-bottom: 20px;
+}
+.editor :global(.grand-total) { border-top-color: #b9cce1; color: var(--estimate-ink); }
+.editor :global(.grand-total) strong { font-size: 23px; color: var(--estimate-ink); }
+.editor button { min-height: 36px; }
+.editor button[aria-label^="Quitar partida"] { color: #a43042; }
+.editor :global(.budget-actions) { border-top-color: #c5d2e2; }
+.editor textarea { min-height: 96px; }
+@media (max-width: 1200px) {
+  .editor :global(.budget-line), .editor :global(.budget-line).internalLine { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .editor :global(.budget-line-total) { grid-column: 1 / 4; grid-row: 3; text-align: left; }
+}
+@media (max-width: 600px) {
+  .editor input:not([type="checkbox"]), .editor select, .editor textarea { font-size: 16px; }
+  .editor button { min-height: 44px; }
+}
+@media (max-width: 480px) {
+  .editor :global(.budget-line), .editor :global(.budget-line).internalLine { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .editor :global(.budget-line-total) { grid-column: auto; grid-row: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor :is(input, select, textarea) { transition: none; }
+}

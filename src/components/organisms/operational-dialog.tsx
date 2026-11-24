@@ -5,6 +5,7 @@ import {Button} from '@/components/ui/button';
 import {useBusiness} from '@/hooks/use-business';
 import {customerMatches} from '@/controladores/clientes';
 import type {BusinessCommand} from '@/lib/supabase/business';
+import {WorkshopIntake} from './workshop-intake';
 
 const today = () => new Intl.DateTimeFormat('en-CA', {timeZone: 'America/El_Salvador'}).format(new Date());
 function Field({label, children}: {label: string; children: React.ReactElement<{'aria-labelledby'?: string}>}) {
@@ -13,7 +14,23 @@ function Field({label, children}: {label: string; children: React.ReactElement<{
 }
 
 export function OperationalDialog() {
-  const {data, modal, command, close, toast,can} = useBusiness();
+  const {modal}=useBusiness();
+  return modal.kind==='orden'?<WorkshopIntake/>:<OperationalRecordDialog/>;
+}
+
+export function CustomerRegistrationDialog({onSaved,onClose}:{
+  onSaved:(id:string)=>void;onClose:()=>void;
+}){
+  return <OperationalRecordDialog customerRegistration={{onSaved,onClose}}/>;
+}
+
+function OperationalRecordDialog({customerRegistration}:{
+  customerRegistration?:{onSaved:(id:string)=>void;onClose:()=>void};
+}) {
+  const business = useBusiness();
+  const {data, command, toast,can} = business;
+  const modal=customerRegistration?{kind:'cliente' as const,id:undefined}:business.modal;
+  const close=customerRegistration?.onClose??business.close;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [phone, setPhone] = useState('');
@@ -79,8 +96,9 @@ export function OperationalDialog() {
         if (request.current?.body !== body) request.current = {body, key: crypto.randomUUID()};
         sending.current = true; setBusy(true); setError('');
         try {
-          await command(name, payload, request.current.key);
-          toast('Registro guardado.'); close();
+          const result=await command(name, payload, request.current.key);
+          toast('Registro guardado.');
+          if(customerRegistration)customerRegistration.onSaved(result.id);else close();
         } catch (error) {setError((error as Error).message);}
         finally {sending.current = false; setBusy(false);}
       }}>

@@ -117,8 +117,8 @@ def main() -> None:
             card.get_by_role('button', name='Registrar abono', exact=True).click()
             dialog = page.get_by_role('dialog')
             dialog.get_by_label('Origen del dinero', exact=True).select_option(advance_id)
-            dialog.get_by_label('Destino del abono', exact=True).select_option(charge_id)
-            dialog.get_by_label('Importe del abono (USD)', exact=True).fill('100')
+            dialog.get_by_label('A qué documento se aplica el cobro', exact=True).select_option(charge_id)
+            dialog.get_by_label('Importe recibido (USD)', exact=True).fill('100')
             submit(page, dialog.get_by_role('button', name='Aplicar recibo sin nuevo ingreso', exact=True), 'record_linked_receipt')
             expect(card.locator('.amount-outstanding dd')).to_have_text('$800.00')
             applied = diary()
@@ -128,11 +128,11 @@ def main() -> None:
 
             card.get_by_role('button', name='Registrar abono', exact=True).click()
             dialog = page.get_by_role('dialog')
-            dialog.get_by_label('Destino del abono', exact=True).select_option(charge_id)
-            dialog.get_by_label('Importe del abono (USD)', exact=True).fill('25')
+            dialog.get_by_label('A qué documento se aplica el cobro', exact=True).select_option(charge_id)
+            dialog.get_by_label('Importe recibido (USD)', exact=True).fill('25')
             dialog.get_by_label('Cuenta o caja receptora', exact=True).fill('Caja DEMO')
             dialog.get_by_label('Referencia del pago', exact=True).fill('DEMO E2E · Additional receipt')
-            submit(page, dialog.get_by_role('button', name='Guardar cobro y aplicar al cargo', exact=True), 'record_linked_receipt')
+            submit(page, dialog.get_by_role('button', name='Guardar cobro y aplicar al documento', exact=True), 'record_linked_receipt')
             expect(card.locator('.amount-outstanding dd')).to_have_text('$775.00')
             assert diary()['income'] == baseline['income'] + 25
 

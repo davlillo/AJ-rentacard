@@ -7,6 +7,13 @@ test('HU13-HU30 empty-module rollback/reapply refuses any used module',async()=>
   const {db,command}=await operationalDb();
   try{
     await db.exec('reset role');const rollback=readFileSync('supabase/rollback/20261022001000_to_002000_operations.sql','utf8');
+    await db.exec(readFileSync('supabase/rollback/20261115000100_rental_extra_charge.sql','utf8'));
+    await db.exec(readFileSync('supabase/rollback/20261114000100_rental_cleaning_recovery.sql','utf8'));
+    const restored=(await db.query<{alias:string|null;auth_execute:boolean;anon_execute:boolean}>(`select
+      to_regprocedure('private.reservation_command_before_cleaning_review(text,jsonb,uuid)')::text alias,
+      has_function_privilege('authenticated','public.execute_reservation_command(text,jsonb,uuid)','EXECUTE') auth_execute,
+      has_function_privilege('anon','public.execute_reservation_command(text,jsonb,uuid)','EXECUTE') anon_execute`)).rows[0];
+    assert.equal(restored.alias,null);assert.equal(restored.auth_execute,true);assert.equal(restored.anon_execute,false);
     await db.exec(readFileSync('supabase/rollback/20261109000200_private_customer_documents.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261109000100_targeted_operational_polish.sql','utf8'));
     await db.exec(readFileSync('supabase/rollback/20261102000100_connected_money.sql','utf8'));
@@ -29,6 +36,8 @@ test('HU13-HU30 empty-module rollback/reapply refuses any used module',async()=>
     await db.exec(rollback);
     assert.equal((await db.query<{name:string|null}>("select to_regclass('public.reservations')::text name")).rows[0].name,null);
     for(const file of readdirSync('supabase/migrations').filter(file=>file>='20261022001000'&&file.endsWith('.sql')).sort())await db.exec(readFileSync(`supabase/migrations/${file}`,'utf8'));
+    assert.ok((await db.query<{alias:string|null}>(`select
+      to_regprocedure('private.reservation_command_before_cleaning_review(text,jsonb,uuid)')::text alias`)).rows[0].alias);
     await db.exec('set role authenticated');
     await command('execute_inventory_command','item',{sku:'ROLLBACK-REFUSAL',name:'Preserve operational data',unit:'unit'});
     await command('execute_optional_command','budget',{name:'Preserve used review workflows',area:'Taller',category:'Materials',

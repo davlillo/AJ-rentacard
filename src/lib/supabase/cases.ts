@@ -71,5 +71,5 @@ export async function uploadVehicleFile(file:File,payload:Record<string,unknown>
 }
 export const vehicleHref=(id:string)=>`/vehiculos/expediente/?id=${encodeURIComponent(id)}`;
 export const orderHref=(id:string)=>`/taller/ingreso/?id=${encodeURIComponent(id)}`;
-export const rentalHref=(id:string)=>`/vehiculos/alquiler/?id=${encodeURIComponent(id)}`;
+export const rentalHref=(id:string)=>`/alquileres/folio/?id=${encodeURIComponent(id)}`;
 export function loadRentalCase(id:string):Promise<CaseFile>{return caseRpc('rental_case_file',{reservation_id:id});}

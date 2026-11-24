@@ -40,7 +40,8 @@ export async function readRows<T>(table: string, columns: string, order = 'id'):
     const {data, error,status} = await createSupabaseBrowserClient().from(table)
       .select(columns).order(order).range(offset, offset + 499).returns<T[]>();
     if(error)throw new Error('No se pudieron cargar los datos compartidos.',{
-      cause:{code:error.code,status,resource:table},
+      cause:{code:error.code,status,resource:table,
+        ...(table === 'workshop_tasks' && isMissingResponsibleNameColumn(error) ? {missingResponsibleName:true} : {})},
     });
     result.push(...data);
     if (data.length < 500) return result;
@@ -56,6 +57,26 @@ interface Expense {
 }
 interface Alias {source_id: string; customer_id: string; snapshot: Customer;}
 
+export function isMissingResponsibleNameColumn(error: {code?:string; message?:string}): boolean {
+  return (error.code === '42703' || error.code === 'PGRST204') &&
+    /(?:^|[^a-z_])responsible_name(?:[^a-z_]|$)/i.test(error.message ?? '') &&
+    /column/i.test(error.message ?? '');
+}
+
+export async function readWorkshopTasks(): Promise<{tasks:WorkshopTask[]; available:boolean}> {
+  const columns = '*,orderId:order_id,assignedTo:assigned_to,assigneeLabel:assignee_label,createdAt:created_at';
+  try {
+    return {tasks:await readRows<WorkshopTask>('workshop_tasks', columns + ',responsibleName:responsible_name'),
+      available:true};
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : null;
+    if (!cause || typeof cause !== 'object' || !('missingResponsibleName' in cause) || !cause.missingResponsibleName) {
+      throw error;
+    }
+    return {tasks:await readRows<WorkshopTask>('workshop_tasks', columns), available:false};
+  }
+}
+
 export async function loadBusiness(): Promise<BusinessData> {
   const [customers, aliases, vehicles, orders, expenses, tasks, reservationHistory, photos] = await Promise.all([
     readRows<StoredCustomer>('customers', '*'),
@@ -64,7 +85,7 @@ export async function loadBusiness(): Promise<BusinessData> {
     readRows<WorkOrder>('work_orders', '*,vehicleId:vehicle_id,customerId:customer_id,pendingFields:pending_fields,' +
       'occurredAt:occurred_at,createdAt:created_at,createdBy:created_by,internalJob:internal_job'),
     readRows<Expense>('expenses', '*'),
-    readRows<WorkshopTask>('workshop_tasks', '*,orderId:order_id,assignedTo:assigned_to,assigneeLabel:assignee_label,createdAt:created_at'),
+    readWorkshopTasks(),
     readRows<ReservationHistory>('reservations','id,vehicleId:vehicle_id,customerId:customer_id,start:starts_at,end:ends_at,status,rentalState:rental_state,folioNumber:folio_number'),
     readRows<{id:string;vehicle_id:string;mime:string;purpose:string;financial:boolean;created_at:string}>('vehicle_files','id,vehicle_id,mime,purpose,financial,created_at'),
   ]);
@@ -75,7 +96,7 @@ export async function loadBusiness(): Promise<BusinessData> {
     })),
     vehicles:vehicles.map(vehicle=>({...vehicle,primaryPhotoId:photos.filter(photo=>photo.vehicle_id===vehicle.id&&
       photo.mime.startsWith('image/')&&!photo.financial).sort((a,b)=>Number(b.purpose==='Vehículo')-Number(a.purpose==='Vehículo')||b.created_at.localeCompare(a.created_at))[0]?.id})),
-    orders, tasks, reservationHistory,
+    orders, tasks:tasks.tasks, taskResponsibleNameAvailable:tasks.available, reservationHistory,
     movements: expenses.map((expense): Movement => ({
       id: expense.id, date: expense.date, concept: expense.concept, amount: Number(expense.amount),
       method: expense.method, type: 'Egreso',

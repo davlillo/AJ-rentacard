@@ -172,7 +172,7 @@ function ReviewSourceItem({item,onChange,onClose}:{item:SourceItem;onChange:()=>
         {kind==='receipt'&&<><label className="form-field"><span>Cliente del recibo verificado</span><select aria-label="Cliente del recibo verificado" name="p.customerId" required defaultValue="">
           <option value="">Seleccionar cliente real</option>{data.customers.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label>
           <label className="form-field"><span>Referencia del recibo verificado</span><input name="p.reference" required/></label>
-          <p className="inline-note">Crear el recibo no lo aplica a una deuda. Su aplicación se revisa en Cargos y cobros.</p></>}
+          <p className="inline-note">Crear el recibo no lo aplica a una deuda. Su aplicación se revisa en Cobros.</p></>}
         {kind==='vehicle'&&<>
           {(['plate','brand','model','year','category','color','daily','km','registeredHolder','commercialLine'] as const).map(field=><label className="form-field" key={field}>
             <span>{{plate:'Placa verificada',brand:'Marca verificada',model:'Modelo verificado',year:'Año verificado',category:'Categoría verificada',color:'Color verificado',daily:'Tarifa diaria verificada USD',km:'Kilometraje verificado',registeredHolder:'Titular registral',commercialLine:'Línea comercial'}[field]}</span>

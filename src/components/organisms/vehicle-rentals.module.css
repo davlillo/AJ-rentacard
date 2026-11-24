@@ -1,0 +1,4 @@
+.records { display: grid; gap: 16px; min-width: 0; }
+.records h2 { font-size: 15px; font-weight: 700; }
+.records a { display: inline-flex; align-items: center; min-height: 36px; }
+@media (max-width: 600px) { .records a { min-height: 44px; } }

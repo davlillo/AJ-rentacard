@@ -1,0 +1,28 @@
+.screen { min-width: 0; }
+.identity { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 20px; }
+.identity span { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: var(--card); font-size: 12px; font-weight: 600; }
+.sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
+.sections button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.sections button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.sections button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.next { padding: 18px; margin-top: 20px; border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 8px; background: var(--background); }
+.next p { font-size: 14px; line-height: 1.6; margin: 8px 0 14px; }
+.money { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.money h2 { font-weight: 700; }
+.money p { font-size: 13px; line-height: 1.6; margin: 8px 0 16px; }
+.money dl { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.money dl > div { min-width: 0; background: var(--background); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.money dt { font-size: 12px; color: var(--muted-foreground); }
+.money dd { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 8px; overflow-wrap: anywhere; }
+.money small { font-size: 12px; }
+@media (max-width: 1024px) { .money dl { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 480px) {
+  .money dl { grid-template-columns: 1fr; }
+  .sections button { width: 100%; }
+  .identity span { max-width: 100%; overflow-wrap: anywhere; }
+  .screen :global(.workshop-quotes) :global(.adaptive-table) tbody { padding: 0; background: transparent; }
+  .screen :global(.workshop-quotes) :global(.adaptive-table) tbody tr { grid-template-columns: 1fr; padding: 14px; gap: 14px; }
+  .screen :global(.workshop-quotes) :global(.adaptive-table) tbody td { grid-column: 1; }
+  .screen :global(.workshop-quotes) :is(a,button) { max-width: 100%; white-space: normal; height: auto; min-height: 44px; overflow-wrap: anywhere; }
+  .screen :is(button,summary) { min-height: 44px; }
+}

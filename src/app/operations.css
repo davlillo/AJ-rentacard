@@ -1,4 +1,48 @@
+@import './operations-components.css';
 /* Quiet back-office workspace. Deliberately scoped away from the login and demo. */
+/* Component definition without changing workspace geometry or the dashboard skin. */
+.operations-app .page-content:not(:has(.business-dashboard)) .module-toolbar>.module-tabs button.active{color:#233c59;font-weight:750}
+.operations-app .month-calendar>header{background:#eaf0f8;border-bottom:1px solid #b7c9df;border-radius:9px 9px 0 0}
+.operations-app .month-calendar .section-kicker{color:#49637f;font-weight:700}
+.operations-app .month-calendar h2{color:#233c59}
+.operations-app .month-calendar-controls{background:#fff;border-color:#adbed3;box-shadow:0 1px 3px #243c5a0a}
+.operations-app .month-calendar-controls button{color:#2d4a6a;font-weight:650}
+.operations-app .month-calendar-controls button:hover{background:#e1eaf5}
+.operations-app .month-calendar-controls button:focus-visible{outline:2px solid #315d89;outline-offset:2px}
+.operations-app .calendar-weekdays{background:#dfe8f4;border-color:#b7c9df}
+.operations-app .calendar-weekdays span{color:#344f70;font-weight:750}
+.operations-app .calendar-day{border-color:#d2ddea}
+.operations-app .calendar-day-number{color:#344f70;font-weight:650}
+.operations-app .calendar-day-outside{background:#f1f4f8}
+.operations-app .calendar-day-outside .calendar-day-number{color:#7b8ca0}
+.operations-app .calendar-day-today{background:#fff6f6;box-shadow:inset 0 3px #d72439}
+.operations-app .calendar-day-today .calendar-day-number{background:#c91d33;color:#fff;box-shadow:0 2px 5px #a71b3020}
+.operations-app .calendar-day-selected{background:#e5eefb;box-shadow:inset 0 0 0 2px #587fa9}
+.operations-app .calendar-event{border-left-width:3px;box-shadow:0 1px 3px #243c5a0a}
+.operations-app .calendar-event-reserved{background:#fff0c8;color:#72500b;border-color:#b47a16}
+.operations-app .calendar-event-rented{background:#dceaff;color:#254f81;border-color:#4679b4}
+.operations-app .calendar-event-blocked{background:#fae1e5;color:#8a2c3f;border-color:#b64b61}
+.operations-app .calendar-reservations>header{background:#eaf0f8;border-bottom-color:#b7c9df;border-radius:9px 9px 0 0}
+.operations-app .calendar-reservations h2{color:#233c59}
+.operations-app .calendar-legend{background:#f3f6fb;color:#405b79;border-radius:0 0 9px 9px}
+.operations-app main.page-content{padding-top:12px}
+.operations-app .page-heading.page-heading-module{position:relative;justify-content:flex-end;gap:0;margin-bottom:12px}
+.operations-app .page-heading.page-heading-module:not(:has(.heading-actions)){margin:0}
+.operations-app .page-heading-module>.heading-actions{margin:0}
+.operations-app .module-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;min-width:0;margin:0 0 14px}
+.operations-app .module-toolbar>.module-tabs{flex:1 1 auto;min-width:0;margin:0;gap:8px 16px}
+.operations-app .module-toolbar>.heading-actions{display:flex;align-items:center;flex:0 1 auto;gap:8px;margin:0;width:auto;min-width:0}
+.operations-app .module-toolbar>.heading-actions:empty{display:none}
+.operations-app .module-toolbar>.heading-actions :is(button,a){min-height:44px;max-width:100%;height:auto;padding:9px 14px;font-size:12px;white-space:normal}
+.operations-app .module-toolbar>.module-tabs button{min-height:44px;padding-block:10px}
+.operations-app .module-filter-toolbar{margin-top:0;margin-bottom:14px}
+.operations-app .page-heading-module+.mini-summary{margin-top:0;margin-bottom:12px}
+.operations-app .page-heading-module>.page-heading-intro{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.operations-app .page-heading-module>.page-heading-intro>:not(h1){display:none}
+.operations-app :is(.heading-actions,.quote-index-table) .compact-edit[aria-label]{position:relative;flex:0 0 auto;width:40px;min-width:40px;min-height:40px;padding:8px}
+.compact-edit[data-tooltip]::after{content:attr(data-tooltip);position:absolute;right:0;bottom:calc(100% + 6px);z-index:20;width:max-content;max-width:240px;padding:6px 9px;border-radius:5px;background:#233a55;color:#fff;font-size:12px;font-weight:500;line-height:1.5;white-space:normal;pointer-events:none;opacity:0;visibility:hidden}
+.compact-edit[data-tooltip]:is(:hover,:focus-visible)::after{opacity:1;visibility:visible}
+@media(max-width:600px){.operations-app :is(.heading-actions,.quote-index-table) .compact-edit[aria-label]{width:44px;min-width:44px;min-height:44px}}
 .operations-app{font-size:14px;background:#f7f8fa;color:#202b3c;--primary:#d72439;--muted-foreground:#647184;--border:#e0e4e9}
 .operations-app .sidebar{width:226px;background:#fff;border-right:1px solid #e3e7ed;color:#526071;box-shadow:none;padding:0 16px}
 .operations-app .brand{height:90px;gap:11px;padding:0 10px;font-size:16px;letter-spacing:0}.operations-app .brand-wordmark strong{display:block;color:#243044;letter-spacing:.5px;font-size:14px}.operations-app .brand-wordmark small{display:block;font-size:11px;color:#8792a1;margin-top:3px;font-weight:400}
@@ -154,3 +198,57 @@
 .rental-record .rental-dates{margin-top:12px}.rental-record .text-link{display:inline-flex;align-items:center;min-height:44px;font-size:12px;color:#365f85;margin-top:10px;font-weight:650}
 @media(max-width:760px){.rental-progress ol{grid-template-columns:repeat(2,minmax(0,1fr))}.rental-operation{padding:20px}.rental-money{grid-template-columns:repeat(3,minmax(0,1fr))}.rental-money>div{padding:14px 12px}.rental-money dd{font-size:17px}}
 @media(max-width:480px){.rental-operation{padding:18px 16px}.rental-operation h2{font-size:17px}.rental-progress li{padding:10px 8px;gap:6px;font-size:11px}.rental-dates{grid-template-columns:minmax(0,1fr);gap:12px}.rental-money{grid-template-columns:repeat(2,minmax(0,1fr))}.rental-money .amount-outstanding{grid-column:1/-1}.rental-money>div{padding:14px}.rental-actions{align-items:stretch}.rental-actions>button,.rental-actions>a{width:100%;justify-content:center}.rental-record-list{padding:18px 16px}}
+
+/* Operational rows remain distinct; original Excel sheets keep their source formatting. */
+.operations-app table:not([aria-label^="Hoja "]) thead th{background:#eaf0f7;color:#3c526d;font-size:11px;font-weight:750;border-bottom:2px solid #bfcedf;letter-spacing:.45px}
+.operations-app table:not([aria-label^="Hoja "]) tbody tr{background:#fff}
+.operations-app table:not([aria-label^="Hoja "]) tbody tr:nth-child(even){background:#f1f5fa}
+.operations-app table:not([aria-label^="Hoja "]) tbody td{color:#354b66;font-size:14px;line-height:1.65;border-bottom:1px solid #cbd7e5;padding:18px}
+.operations-app table:not([aria-label^="Hoja "]) tbody td strong{font-weight:700;color:#233c59}
+.operations-app table:not([aria-label^="Hoja "]) tbody td small{color:#536b87;font-size:12px;line-height:1.65}
+.operations-app table:not([aria-label^="Hoja "]) tbody tr:hover{background:#eaf2ff}
+.operations-app table:not([aria-label^="Hoja "]) tbody tr:hover td:first-child{box-shadow:inset 3px 0 #6b91c2}
+.operations-app table:not([aria-label^="Hoja "]) tbody tr:last-child td{border-bottom:0}
+.operations-app table:not([aria-label^="Hoja "]) td :is(button,a.inline-flex){max-width:100%;white-space:normal;overflow-wrap:anywhere;flex-wrap:wrap;gap:6px;padding:8px 10px;height:auto;min-height:40px}
+@media(max-width:1100px){
+  .operations-app .adaptive-table,.operations-app .adaptive-table tbody{display:block}
+  .operations-app .adaptive-table thead{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}
+  .operations-app .adaptive-table tbody{padding:10px;background:#edf2f8}
+  .operations-app .adaptive-table tbody tr,.operations-app .adaptive-table tbody tr:last-child{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px;margin:0 0 12px;border:1px solid #c7d5e5;border-left:3px solid #9db5d2;border-radius:8px;padding:17px;background:#fff}
+  .operations-app .adaptive-table tbody tr:last-child{margin-bottom:0}
+  .operations-app .adaptive-table tbody tr:nth-child(even){background:#f8faff}
+  /* Desktop column widths must not constrain the fields of a reflowed record. */
+  .operations-app .adaptive-table tbody td{display:block;border:0;padding:0;font-size:14px;min-width:0;width:auto!important}
+  .operations-app .quote-index-table tbody td:nth-child(2){grid-column:1/-1}
+  .operations-app .adaptive-table td:first-child,.operations-app .adaptive-table td:has(details),.operations-app .adaptive-table td:has(form),.operations-app .adaptive-table td:has([colspan]),.operations-app .adaptive-table td[colspan],.operations-app .adaptive-table td:last-child:has(button),.operations-app .adaptive-table td:last-child:has(a){grid-column:1/-1}
+  .operations-app .adaptive-table td::before{content:attr(data-label);display:block;font-size:11px;font-weight:750;color:#4c6582;line-height:1.5;margin-bottom:6px}
+  .operations-app .adaptive-table td:not([data-label])::before,.operations-app .adaptive-table td[data-label=""]::before{display:none}
+  .operations-app .adaptive-table tbody tr:hover td:first-child{box-shadow:none}
+}
+
+/* The collections card is a compact record: identity, both states, three amounts, one action row.
+   Every rule here is scoped under .collection-card so no other screen changes. */
+.collection-card>header{padding:13px 16px;gap:12px;align-items:center;flex-wrap:nowrap}
+.collection-card>header .vehicle-media-thumbnail{width:52px;height:42px;flex-basis:52px}
+.collection-card .collection-identity h2{font-size:15px;margin-top:2px}
+.collection-card .collection-identity small{font-size:11px;margin-top:2px}
+.collection-card .collection-statuses{margin-left:auto;display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
+.collection-card .collection-status-dot{color:#9aa8b9;font-size:12px}
+.collection-card .collection-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0;border-top:1px solid #edf0f4;border-bottom:1px solid #edf0f4;background:#fafbfd}
+.collection-card .collection-money>div{padding:11px 16px;min-width:0;border-right:1px solid #e8ecf1}
+.collection-card .collection-money>div:last-child{border-right:0}
+.collection-card .collection-money dt{font-size:11px;color:#65758a;line-height:1.4}
+.collection-card .collection-money dd{font-size:17px;line-height:1.3;font-weight:750;color:#263950;letter-spacing:-.4px;margin:4px 0 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.collection-card .collection-money small{display:block;font-size:10px;color:#68788c;line-height:1.5;margin-top:4px}
+.collection-card .collection-money .collection-money-paid{color:#27795f}
+.collection-card .collection-money .collection-money-pending{background:#fff8f5}
+.collection-card .collection-money .collection-money-pending dd{color:#a44335}
+.collection-card .collection-actions{padding:11px 16px;gap:8px}
+.collection-card .collection-detail{padding:0 16px 14px;border-top:1px solid #edf0f4;color:#63758b;font-size:12px}
+.collection-card .collection-detail>summary{cursor:pointer;font-weight:650;min-height:34px;display:flex;align-items:center}
+.collection-card .collection-detail .operation-amounts{margin-top:8px;border:1px solid #edf0f4;border-radius:8px;background:#fafbfd;overflow:hidden}
+.collection-card .collection-detail .inline-note{margin:10px 0 0}
+.collection-card .collection-breakdown{padding:12px 0 0;border-top:1px solid #edf0f4;margin-top:12px}
+.collection-card .collection-breakdown h3{font-size:12px;font-weight:750;color:#3e536e}
+@media(max-width:760px){.collection-card>header{flex-wrap:wrap;padding:12px 14px}.collection-card .collection-statuses{margin-left:0;width:100%;justify-content:flex-start}.collection-card .collection-money>div{padding:10px 12px}.collection-card .collection-actions{padding:12px 14px}.collection-card .collection-detail{padding:0 14px 12px}}
+@media(max-width:480px){.collection-card .collection-money dd{font-size:15px}.collection-card .collection-money dt{font-size:10px}.collection-card .collection-money small{display:none}}

@@ -51,10 +51,10 @@ export function WorkbookPreview({format}:{format:WorkbookFormat}){
   </section>;
 }
 
-export function WorkbookWorkspace({format,children}:{format:WorkbookFormat;children:React.ReactNode}){
+export function WorkbookWorkspace({format,children,actions}:{format:WorkbookFormat;children:React.ReactNode;actions?:React.ReactNode}){
   const {can}=useBusiness();const [view,setView]=useState('system');
-  return <><nav className="module-tabs" aria-label="Vista de la sección">
+  return <><div className="module-toolbar"><nav className="module-tabs" aria-label="Vista de la sección">
     <button className={view==='system'?'active':''} aria-pressed={view==='system'} onClick={()=>setView('system')}>Gestión</button>
     {can('expenses.read')&&<button className={view==='excel'?'active':''} aria-pressed={view==='excel'} onClick={()=>setView('excel')}>Archivo original</button>}
-  </nav>{view==='excel'?<WorkbookPreview format={format}/>:children}</>;
+  </nav>{actions&&<div className="heading-actions">{actions}</div>}</div>{view==='excel'?<WorkbookPreview format={format}/>:children}</>;
 }

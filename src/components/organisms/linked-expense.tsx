@@ -87,7 +87,8 @@ export function ExpenseInbox({orderId,onChange}:{orderId?:string;onChange:()=>Pr
   async function reload(){setLoading(true);try{setExpenses(await loadExpenseInbox());setError('');}finally{setLoading(false);}}
   useEffect(()=>{let active=true;void loadExpenseInbox().then(rows=>{if(active){setExpenses(rows);setLoading(false);}})
     .catch(error=>{if(active){setError(error.message);setLoading(false);}});return()=>{active=false;};},[]);
-  return <section className={styles.inbox} aria-label="Gastos por asociar">
+  return <details className={styles.inbox}>
+    <summary>Asociar gasto existente ({loading?'…':expenses.length}){error?' · Error de consulta':''}</summary>
     <header><div><h3><Link2 size={17}/>Gastos ya registrados, por asociar</h3><p>Use el movimiento original del diario; no vuelva a cargar el gasto en este folio.</p></div>
       <Button variant="ghost" disabled={loading} onClick={()=>{void reload().catch(e=>setError(e.message));}}>Actualizar</Button></header>
     {loading?<p role="status">Consultando gastos…</p>:!expenses.length?<p>No hay gastos de taller por asociar.</p>:<div className={styles.inboxList}>
@@ -96,7 +97,7 @@ export function ExpenseInbox({orderId,onChange}:{orderId?:string;onChange:()=>Pr
     {error&&<p className="form-error" role="alert">{error}</p>}
     {selected&&<LinkExpenseDialog key={selected.id} expense={selected} orderId={orderId} onClose={()=>setSelected(undefined)}
       onChange={async()=>{await onChange();await reload();}}/>}
-  </section>;
+  </details>;
 }
 export function LinkExpenseDialog({expense,orderId,onClose,onChange}:{expense:Pick<UnlinkedExpense,'id'|'amount'|'concept'|'date'>;orderId?:string;onClose:()=>void;onChange:()=>Promise<void>}){
   const {refresh}=useBusiness();const [lines,setLines]=useState<ExpenseAllocation[]>([{orderId:orderId??'',amount:String(expense.amount)}]);

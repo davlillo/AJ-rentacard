@@ -45,7 +45,7 @@ export function RentalGantt({vehicles,reservations,commitments,from,onNavigate,o
     <div className={styles.toolbar}><div className={styles.range}><CalendarDays size={16}/><strong>{dateLabel(from)} <MoveRight size={14}/> {dateLabel(days.at(-1)??from)}</strong>
       <span>{rows.length} de {vehicles.length} vehículos</span></div>
       <div className={styles.filters}><label><span className="sr-only">Estado en el Gantt</span><select aria-label="Estado en el Gantt" value={kind} onChange={e=>setKind(e.target.value)}>
-        <option value="Todos">Todos los compromisos</option><option value="Alquilado">Alquilados</option><option value="Reservado">Reservados</option></select></label>
+        <option value="Todos">Todos</option><option value="Alquilado">Alquilados</option><option value="Reservado">Reservados</option></select></label>
         <label className={styles.onlyBusy}><input type="checkbox" checked={onlyBusy} onChange={e=>setOnlyBusy(e.target.checked)}/>Solo con compromisos</label></div>
     </div>
     <div className={styles.schedule} style={{'--timeline-days':count} as CSSProperties}>

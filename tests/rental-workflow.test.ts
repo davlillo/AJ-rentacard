@@ -26,14 +26,29 @@ test('return is not complete until its own cleaning is explicitly reviewed',()=>
   assert.equal(rentalWorkflow(returned,[cleaning]).step,2);
   assert.equal(rentalWorkflow(returned,[]).step,2);
   assert.equal(rentalWorkflow(returned,[{...cleaning,reservation_id:'another',active:false}]).step,2);
-  assert.equal(rentalWorkflow(returned,[{...cleaning,active:false}]).step,3);
-  assert.equal(rentalWorkflow(returned,[{...cleaning,active:false}]).label,'Alquiler finalizado');
+  assert.equal(rentalWorkflow(returned,[{...cleaning,active:false}]).step,2);
+  const reviewed={...returned,actual_return_at:'2026-11-05T20:00:00Z'};
+  assert.equal(rentalWorkflow(reviewed,[{...cleaning,active:false,reason:'Readiness reviewed'}]).label,'Alquiler finalizado');
+  assert.equal(rentalWorkflow(reviewed,[{...cleaning,active:false,reason:'Readiness reviewed',ends_at:'2099-01-01T00:00:00Z'}]).step,2);
+  assert.equal(rentalWorkflow(reviewed,[{...cleaning,active:false,reason:'Readiness reviewed',ends_at:'2026-11-04T00:00:00Z'}]).step,2);
+});
+
+test('an inactive conflict or generated cleaning schedule is never completion evidence',()=>{
+  const returned={...booking,rental_state:'Devuelto',actual_return_at:'2026-11-05T20:00:00Z'} as Reservation;
+  for(const reason of ['CONFLICTO de limpieza tras devolución tardía; requiere reprogramación','Revisión posterior a devolución','']){
+    const result=rentalWorkflow(returned,[{...cleaning,active:false,reason}]);
+    assert.equal(result.step,2);assert.equal(result.action,'clean');
+  }
+  assert.match(rentalWorkflow(returned,[{...cleaning,active:false,reason:'CONFLICTO de limpieza'}]).description,/conflicto/i);
+  assert.equal(rentalWorkflow({...returned,rental_state:'Cerrado'},[]).step,3);
+  assert.equal(rentalWorkflow({...returned,status:'Cancelada'},[]).label,'Reserva cancelada');
+  assert.equal(rentalWorkflow({...returned,status:'Borrador'},[]).step,0);
 });
 
 test('current rental wins over future bookings and newest records; history stays separate',()=>{
   const future={...booking,id:'future',rental_state:'Preparado',starts_at:'2026-11-16T01:33:00Z'} as Reservation;
   const sooner={...future,id:'sooner',starts_at:'2026-11-12T08:00:00-06:00'};
-  const history={...booking,id:'history',rental_state:'Devuelto'} as Reservation;
+  const history={...booking,id:'history',rental_state:'Cerrado'} as Reservation;
   const draft={...future,id:'draft',status:'Borrador'} as Reservation;
   const canceled={...future,id:'canceled',status:'Cancelada'} as Reservation;
   const records=[future,history,canceled,draft,sooner,booking];
@@ -43,7 +58,7 @@ test('current rental wins over future bookings and newest records; history stays
   assert.deepEqual(groups.history.map(r=>r.id),['canceled','history']);
   assert.deepEqual(groups.drafts.map(r=>r.id),['draft']);
   assert.equal(records[0].id,'future');
-  assert.equal(groupVehicleRentals([history,future],[]).focus?.id,'history');
+  assert.equal(groupVehicleRentals([{...history,rental_state:'Devuelto'},future],[]).focus?.id,'history');
 });
 
 test('display dates explicitly use El Salvador, including UTC dates crossing midnight',()=>{

@@ -7,10 +7,14 @@ import {OperationalDashboard} from './operational-dashboard';
 
 const permissions: Record<string, string> = {
   '/clientes': 'customers.read', '/vehiculos': 'vehicles.read', '/taller': 'orders.read',
+  '/clientes/expediente': 'customers.read',
   '/libro-diario': 'expenses.read',
   '/tareas': 'tasks.read',
   '/presupuestos': 'expenses.write',
   '/calendario': 'orders.read',
+  '/alquileres': 'orders.read',
+  '/alquileres/nuevo': 'orders.read',
+  '/alquileres/folio': 'orders.read',
   '/cobros': 'expenses.read',
   '/inventario': 'expenses.read',
   '/reportes': 'expenses.read',
