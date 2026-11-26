@@ -54,7 +54,8 @@ export function TaskBoard({orderId}: {orderId?: string}) {
   }
   return <section className={styles.board} aria-label={orderId ? `Tareas de ${orderId}` : 'Tareas asignadas'}>
     <header className={styles.heading}><h3>Tareas y responsables</h3>
-      <p>El nombre indica quién hace el trabajo. La cuenta de seguimiento conserva los permisos y cronómetros.</p></header>
+      <p>El nombre indica quién hace el trabajo. La cuenta de seguimiento conserva los permisos y cronómetros.</p>
+      <p className={styles.optional}>Seguimiento opcional: las tareas abiertas no impiden entregar el vehículo. Puede cerrarlas después.</p></header>
     {manager && !nameAvailable && <p className={styles.notice} role="status">
       Para guardar nombres de responsables se requiere actualizar la base de datos.
       Puede seguir creando tareas con una cuenta de seguimiento.</p>}

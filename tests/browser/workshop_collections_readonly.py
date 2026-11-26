@@ -88,6 +88,7 @@ def protect(route):
             assert body['payload']['orderId'] == fixture.JOB['id']
             COMMANDS.append(copy.deepcopy(body))
             STATE['issued'] = 1200
+            STATE['empty'] = False
             route.fulfill(json={})
             return
     if '/rest/v1/' in url.path and request.method == 'GET':
@@ -358,6 +359,22 @@ def main():
             shot(page, 'explicit-issuance-review', 1440)
             page.get_by_role('button', name='Emitir importe a cobrar de $200.00', exact=True).click()
             expect(page.get_by_role('button', name='Cerrar editor')).to_have_count(0)
+            assert COMMANDS[-1]['command'] == 'bill_scope'
+            # The same issuance is offered inline in the approval stage: one shared
+            # form, one command, no navigation to Cobros required to see it.
+            fixture.STATE.update(quotes=[{**copy.deepcopy(fixture.QUOTE), 'id': 'approved',
+                                          'status': 'Aprobado',
+                                          'snapshot': {**fixture.QUOTE['snapshot'], 'total': 1200}}])
+            STATE['empty'] = True
+            fixture.go(page, 'Aprobación')
+            card = page.get_by_role('region', name='Emitir importe a cobrar')
+            expect(card).to_be_visible()
+            expect(card).to_contain_text('Trabajo acordado aprobado: $1,200.00')
+            expect(card).to_contain_text('No recibe dinero ni cambia el costo.')
+            expect(page.get_by_role('button', name='Emitir importe a cobrar de $1,200.00', exact=True)).to_have_count(1)
+            shot(page, 'approval-stage-issuance', 1440)
+            page.get_by_role('button', name='Emitir importe a cobrar de $1,200.00', exact=True).click()
+            expect(card).to_contain_text('El alcance aprobado ya tiene su documento de cobro emitido')
             assert COMMANDS[-1]['command'] == 'bill_scope'
             STATE.update(grouped=True, reversal=True)
             go(page)

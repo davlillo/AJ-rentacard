@@ -10,6 +10,7 @@
 .board input, .board select { min-width: 0; width: 100%; min-height: 44px; }
 .board button { min-height: 44px; white-space: normal; }
 .notice { padding: .85rem; margin-bottom: 1rem; background: #fff7e6; color: #734b0a; border-radius: .5rem; }
+.optional { padding: .6rem .75rem; margin-top: .6rem; background: #f4f8f7; color: #405a57; border-left: 3px solid #20756e; border-radius: .4rem; font-size: .85rem; }
 .board :focus-visible { outline: 2px solid #20756e; outline-offset: 3px; }
 @media (max-width: 640px) {
   .create { padding: .75rem; }

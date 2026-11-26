@@ -1,6 +1,9 @@
 .screen { min-width: 0; }
 .identity { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 20px; }
 .identity span { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: var(--card); font-size: 12px; font-weight: 600; }
+/* The polite line that states the stage the folio moved to after a successful action. */
+.advanceNotice { margin: 0 0 20px; padding: 10px 14px; border-inline-start: 3px solid var(--primary); border-radius: 10px;
+  background: color-mix(in srgb,var(--primary) 8%,var(--card)); font-size: 13px; font-weight: 650; }
 .sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
 .sections button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
 .sections button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
@@ -15,6 +18,12 @@
 .money dt { font-size: 12px; color: var(--muted-foreground); }
 .money dd { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 8px; overflow-wrap: anywhere; }
 .money small { font-size: 12px; }
+/* The issuance is the operator's next money action right after an approval:
+   it is a bordered card of its own so it is never buried under the decision. */
+.issueCard { margin: 0 0 22px; padding: 20px; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; background: var(--card); }
+.issueCard h3 { font-size: 17px; font-weight: 750; margin: 0 0 8px; }
+.issueCard p { font-size: 14px; line-height: 1.7; margin: 6px 0; }
+.issueCard :global(input) { min-height: 44px; min-width: 0; }
 @media (max-width: 1024px) { .money dl { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 480px) {
   .money dl { grid-template-columns: 1fr; }

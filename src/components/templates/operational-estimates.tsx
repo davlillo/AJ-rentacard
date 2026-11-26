@@ -13,7 +13,7 @@ import {Pagination,usePagination} from '@/components/organisms/pagination';
 import {PresupuestosScreen} from './presupuestos-screen';
 import {money} from '@/controladores/finanzas';
 import {folio} from '@/controladores/folios';
-import {budgetDraftTotals} from '@/controladores/budget-draft';
+import {additionalLineIndexes,budgetAdditionalItems,budgetDraftTotals,type AdditionalItems,type DraftKindTotals} from '@/controladores/budget-draft';
 import {ADDITIONAL_REASON_HINT,RE_APPROVAL_NOTICE,clarityEmptyLine,clarityLabels,needsClientApproval,planAdditionalItem,type ClarityVersion} from '@/controladores/budget-clarity';
 import {orderHref} from '@/lib/supabase/cases';
 import {estimateCommand,loadEstimates,quotePdf,type QuoteVersion} from '@/lib/supabase/estimates';
@@ -23,10 +23,38 @@ import {workshopMoney} from '@/controladores/workshop-pipeline';
 import {recordConnectedQuote} from '@/lib/supabase/connected-money';
 import {BudgetCostOrigins} from '@/components/organisms/budget-cost-origins';
 import styles from './operational-estimates.module.css';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 export interface BudgetLine {description:string;kind:string;quantity:string;unitPrice:string;unitCost:string;sourceCostId?:string;sourceCostVersion?:number;}
 const emptyLine=(kind='Material'):BudgetLine=>clarityEmptyLine(kind);
 const kindLabel=(kind:string)=>kind==='Trabajo'?'Mano de obra':kind==='Tercero'?'Servicio externo':kind==='Indirecto'?'Otro costo':'Material';
+// Plain labels for the money split. A kind that is zero prints no row at all.
+const kindRows=(kinds:DraftKindTotals)=>[
+  {label:'Repuestos (material)',amount:kinds.material},
+  {label:'Mano de obra',amount:kinds.labor},
+  {label:'Servicios externos',amount:kinds.thirdParty},
+  {label:'Otros costos',amount:kinds.indirect},
+].filter(row=>row.amount!==0);
+const revisionState=(status:string)=>status==='Aprobado'?'aprobado':status==='Rechazado'?'rechazado':'pendiente de aprobación';
+// One additional-item summary for the folio detail and for the editor: amounts and the
+// state of the revision they belong to, plus the authorized costs left outside the scope.
+function AdditionalSummary({items}:{items:AdditionalItems}){
+  if(!items.lines.length&&!items.outside.length)return null;
+  return <section className={styles.additionalBlock} aria-label="Adicionales del presupuesto">
+    <h3>Adicionales</h3>
+    <p className="field-hint">Partidas agregadas después del alcance inicial. Solo cuentan cuando su versión queda aprobada.</p>
+    {!!items.lines.length&&<ul className={styles.additionalList}>{items.lines.map((item,index)=>
+      <li key={item.quoteId+'-'+index}><span>{item.description}</span><span className={styles.additionalAmount}>{money(item.amount)}</span>
+        <small>Versión {item.revision} · {revisionState(item.status)}</small></li>)}</ul>}
+    {items.outside.map(cost=><p key={cost.costId} className={styles.outsideAdditional}>
+      <strong>Adicional autorizado fuera del presupuesto:</strong> {cost.description} · {money(cost.amount)}.
+      <span>No está incluido en el alcance aprobado; requiere una versión aprobada antes de cobrarse.</span></p>)}
+  </section>;
+}
+const toSnapshotLine=(line:{description:string;quantity:number;unitPrice:number;unitCost:number|null})=>
+  ({description:line.description,quantity:Number(line.quantity),unitPrice:Number(line.unitPrice),unitCost:line.unitCost===null?null:Number(line.unitCost)});
+const snapshotAmount=(line:{kind:string;quantity:number;unitPrice:number;unitCost:number|null})=>
+  ({kind:line.kind,quantity:String(line.quantity),unitPrice:String(line.unitPrice),unitCost:line.unitCost===null?'':String(line.unitCost)});
 
 // What the editor starts from. The folio stage and the presupuestos workspace hand
 // the same seed, so both open the same editor with the same canonical save.
@@ -123,6 +151,16 @@ function BudgetWorkspace(){
     .filter(q=>statusFilter==='Todos'||q.status===statusFilter);
   const page=usePagination(latestQuotes,query+statusFilter);
   const detailReApproval=quote&&quote.status!=='Aprobado'&&needsClientApproval(versions,quote.id)?RE_APPROVAL_NOTICE:null;
+  // The folio detail reads the split and the additional items from the saved versions
+  // of this work only. Nothing is recomputed into a second total.
+  const orderQuotes=quotes.filter(q=>q.order_id===contextOrder);
+  const detailTotals=quote?budgetDraftTotals(quote.snapshot.lines.map(snapshotAmount),String(quote.snapshot.discount)):null;
+  const detailAdded=new Set(quote?additionalLineIndexes(quote.snapshot.lines.map(toSnapshotLine),
+    (orderQuotes.find(version=>version.id===quote.parent_id)?.snapshot.lines??[]).map(toSnapshotLine)):[]);
+  const detailAdditional=budgetAdditionalItems(orderQuotes.map(version=>({id:version.id,revision:version.revision,
+    parent_id:version.parent_id,status:version.status,snapshot:{lines:version.snapshot.lines.map(toSnapshotLine)}})),
+    (caseFile?.costs??[]).filter(cost=>cost.order_id===contextOrder).map(cost=>({id:cost.id,description:cost.description,
+      amount:cost.amount,disposition:cost.disposition,estimate_id:cost.estimate_id})));
   if(!can('expenses.read')||caseFile?.financialAccess===false)return <p className="inline-note">Información financiera restringida.</p>;
   return <><PageHeading title="Presupuestos"/>
     <div className="module-toolbar"><nav className="module-tabs" aria-label="Vista de presupuestos"><button className={view!=='excel'?'active':''} onClick={()=>setView('list')}>Lista</button></nav>
@@ -168,8 +206,11 @@ function BudgetWorkspace(){
         Los cambios se guardan como una nueva versión del mismo trabajo, sin duplicar gastos ni cobros.
         {latest&&latest.id!==quote.id&&' Hay una versión más reciente; la edición tomará esa última versión para no perder partidas.'}</p>
       {detailReApproval&&<p className="inline-note" role="status"><strong>Requiere una nueva aprobación del cliente.</strong> {detailReApproval} Guardar esta versión no la aprueba ni emite cobros.</p>}
-      <AdaptiveTable><thead><tr><th>Descripción</th><th>Tipo</th><th>Cantidad</th><th>{internal?clarityLabels.internalCost:'Precio unitario'}</th><th>Importe</th></tr></thead><tbody>{quote.snapshot.lines.map((l,i)=><tr key={i}><td><strong>{l.description}</strong></td><td>{kindLabel(l.kind)}</td><td>{l.quantity}</td><td>{internal?(l.unitCost===null?clarityLabels.missingCost:money(l.unitCost)):money(l.unitPrice)}</td><td><strong>{internal?(l.cost===null?clarityLabels.missingCost:money(l.cost)):money(l.price)}</strong></td></tr>)}</tbody></AdaptiveTable>
-      <div className="budget-tally">{!internal&&<><div><span>Subtotal</span><strong>{money(quote.snapshot.subtotal)}</strong></div><div><span>Descuento</span><strong>{money(quote.snapshot.discount)}</strong></div></>}<div className="grand-total"><span>{internal?clarityLabels.internalCost:'Total'}</span><strong>{internal?(quote.snapshot.costComplete===false?clarityLabels.missingCost:money(quote.snapshot.cost)):money(quote.snapshot.total)}</strong></div></div>
+      <AdaptiveTable><thead><tr><th>Descripción</th><th>Tipo</th><th>Cantidad</th><th>{internal?clarityLabels.internalCost:'Precio unitario'}</th><th>Importe</th></tr></thead><tbody>{quote.snapshot.lines.map((l,i)=><tr key={i}><td><strong>{l.description}</strong>{detailAdded.has(i)&&<> <Badge tone="amber">Adicional</Badge></>}</td><td>{kindLabel(l.kind)}</td><td>{l.quantity}</td><td>{internal?(l.unitCost===null?clarityLabels.missingCost:money(l.unitCost)):money(l.unitPrice)}</td><td><strong>{internal?(l.cost===null?clarityLabels.missingCost:money(l.cost)):money(l.price)}</strong></td></tr>)}</tbody></AdaptiveTable>
+      <div className="budget-tally">{!internal&&<><div><span>Subtotal</span><strong>{money(quote.snapshot.subtotal)}</strong></div>
+        {detailTotals&&kindRows(detailTotals.priceByKind).map(row=><div key={row.label} className={styles.kindRow}><span>{row.label}</span><strong>{money(row.amount)}</strong></div>)}
+        <div><span>Descuento</span><strong>{money(quote.snapshot.discount)}</strong></div></>}<div className="grand-total"><span>{internal?clarityLabels.internalCost:'Total'}</span><strong>{internal?(quote.snapshot.costComplete===false?clarityLabels.missingCost:money(quote.snapshot.cost)):money(quote.snapshot.total)}</strong></div></div>
+      {!internal&&<AdditionalSummary items={detailAdditional}/>}
       {quote.source_totals&&<aside className="source-reconciliation"><h3>Resumen anotado en el original</h3><dl><div><dt>Inicial + adicionales</dt><dd>{money(quote.source_totals.initial)} + {money(quote.source_totals.additional)}</dd></div><div><dt>Abono anotado</dt><dd>{money(quote.source_totals.advanceNotPosted)}</dd></div><div><dt>Saldo anotado</dt><dd>{money(quote.source_totals.balanceNotPosted)}</dd></div></dl><p>El abono y el saldo se conservan como referencia: no se han registrado como cobro ni deuda.</p></aside>}
       <p className="text-sm muted mt-4">{quote.reason}</p>
       <div className="budget-actions">{can('expenses.write')&&quote.status==='Borrador'&&quote.id===latest?.id&&job?.status!=='Entregado'&&<Button onClick={()=>setApproval(!approval)}>Aprobar presupuesto</Button>}
@@ -188,9 +229,9 @@ function BudgetWorkspace(){
        {approval&&can('expenses.write')&&quote.id===latest?.id&&quote.status==='Borrador'&&job?.status!=='Entregado'&&<form className="operation-form mt-5" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);const payload={estimateId:quote.id,approverName:String(f.get('name')),evidence:String(f.get('evidence'))};
         void execute('approve',payload,key=>estimateCommand('approve',payload,key)).then(saved=>{if(saved)setApproval(false);});
       }}><label className="form-field"><span>Persona que aprueba</span><input name="name" required/></label><label className="form-field"><span>Confirmación del cliente</span><textarea name="evidence" required placeholder="Acuerdo por escrito, mensaje o autorización"/></label><Button type="submit" disabled={busy}>Confirmar aprobación</Button></form>}
-      <details className="mt-6"><summary className="text-sm muted">Versiones y costos internos</summary><div className="operation-form mt-4"><label className="form-field"><span>Versión</span><select aria-label="Versión del presupuesto" value={selected} onChange={e=>{setSelected(e.target.value);setApproval(false);}}>
+      <Disclosure label="Versiones y costos internos" hint="Interno · no se muestra al cliente"><div className="operation-form mt-4"><label className="form-field"><span>Versión</span><select aria-label="Versión del presupuesto" value={selected} onChange={e=>{setSelected(e.target.value);setApproval(false);}}>
         {quotes.filter(q=>q.order_id===quote.order_id).sort((a,b)=>b.revision-a.revision).map(q=><option key={q.id} value={q.id}>{folio('PRE',q.folio_number)} · Versión {q.revision} · {q.status}</option>)}</select></label>
-        <p className="text-sm">{clarityLabels.internalCost}: {quote.snapshot.costComplete===false?clarityLabels.missingCost:money(quote.snapshot.cost)}</p></div></details>
+        <p className="text-sm">{clarityLabels.internalCost}: {quote.snapshot.costComplete===false?clarityLabels.missingCost:money(quote.snapshot.cost)}</p></div></Disclosure>
        {caseFile&&<section className="budget-operation-money"><h3>Seguimiento de este trabajo</h3><dl className="operation-amounts">
          {!internal&&<><div><dt>Importe a cobrar · emitido</dt><dd>{money(workshopMoney(caseFile,quote.order_id).charged)}</dd></div>
          <div><dt>Cobros aplicados</dt><dd className="amount-paid">{money(workshopMoney(caseFile,quote.order_id).paid)}</dd></div>
@@ -242,6 +283,17 @@ export function BudgetEditor({orderId,seed,seedVersion,versions=[],caseFile,onCh
   const versionsLocal:ClarityVersion[]=quotes.length?quotes.map(q=>({id:q.id,parent_id:q.parent_id,status:q.status})):versions;
   const reApproval=needsClientApproval(versionsLocal,revisionParent)?RE_APPROVAL_NOTICE:null;
   const totals=budgetDraftTotals(lines,discount,internal);
+  // An extra line is the one appended after the copied scope of its parent revision.
+  // The prefix check inside additionalLineIndexes keeps edited scopes from being labelled.
+  const parentQuote=quotes.find(version=>version.id===revisionParent);
+  const addedIndexes=new Set(additionalLineIndexes(lines.map(line=>({description:line.description,
+    quantity:Number(line.quantity)||0,unitPrice:Number(line.unitPrice)||0,unitCost:line.unitCost===''?null:Number(line.unitCost)})),
+    (parentQuote?.snapshot.lines??[]).map(toSnapshotLine)));
+  const savedAdditional=budgetAdditionalItems(quotes.filter(version=>version.order_id===existing?.id).map(version=>({
+    id:version.id,revision:version.revision,parent_id:version.parent_id,status:version.status,
+    snapshot:{lines:version.snapshot.lines.map(toSnapshotLine)}})),
+    (caseFile?.costs??[]).filter(cost=>cost.order_id===existing?.id).map(cost=>({id:cost.id,
+      description:cost.description,amount:cost.amount,disposition:cost.disposition,estimate_id:cost.estimate_id})));
   const {execute,busy,error}=useCaseAction(onChange??(async()=>{}));
   function change(index:number,key:keyof Omit<BudgetLine,'sourceCostId'|'sourceCostVersion'>,value:string){setLines(lines.map((line,i)=>i===index?{...line,[key]:value}:line));}
   function continueLatest(version:QuoteVersion){
@@ -265,9 +317,9 @@ export function BudgetEditor({orderId,seed,seedVersion,versions=[],caseFile,onCh
       <p>{internal?'Estimación interna del mantenimiento. No es una venta.':editorSection==='costs'?
         'Registre recursos y costos estimados desde el diagnóstico. Luego defina el precio al cliente; no se calcula un margen automático.':
         'Los costos internos permanecen visibles mientras define manualmente el precio al cliente. Cambiar un costo no cambia ese precio.'}</p>
-      <details><summary>Ver costos internos de esta partida</summary>
+      <Disclosure label="Ver costos internos de esta partida">
          {lines.filter(line=>line.description).map((line,index)=><p key={index}>{line.description} · {line.quantity} × {line.unitCost===''?clarityLabels.missingCost:money(Number(line.unitCost))}</p>)}
-       </details>
+       </Disclosure>
     </aside>
      <form className={`budget-paper ${styles.editor}`} onSubmit={event=>{
       event.preventDefault();
@@ -299,7 +351,8 @@ export function BudgetEditor({orderId,seed,seedVersion,versions=[],caseFile,onCh
         setLines(current=>current.length===1&&!current[0].description&&!current[0].unitPrice?[added]:[...current,added]);
       }}/>}
        <div className="budget-line-list" aria-label="Partidas del presupuesto">{lines.map((line,index)=><div className={`budget-line ${internal?styles.internalLine:''}`} key={index}>
-         <label className="form-field budget-line-description"><span>Descripción {index+1} *</span><input aria-label={`Descripción ${index+1}`} required value={line.description} onChange={e=>change(index,'description',e.target.value)} placeholder="Repuesto, material o trabajo"/></label>
+         <label className="form-field budget-line-description"><span>Descripción {index+1} *</span><input aria-label={`Descripción ${index+1}`} required value={line.description} onChange={e=>change(index,'description',e.target.value)} placeholder="Repuesto, material o trabajo"/>
+           {(addedIndexes.has(index)||!!line.sourceCostId)&&<small className={styles.additionalTag}>Adicional</small>}</label>
         <label className="form-field"><span>Tipo</span><select aria-label={`Tipo ${index+1}`} value={line.kind} onChange={e=>change(index,'kind',e.target.value)}>{['Material','Trabajo','Tercero','Indirecto'].map(kind=><option key={kind} value={kind}>{kindLabel(kind)}</option>)}</select></label>
         <label className="form-field"><span>Cantidad *</span><input aria-label={`Cantidad ${index+1}`} type="number" step="0.0001" min="0.0001" required value={line.quantity} onChange={e=>change(index,'quantity',e.target.value)}/></label>
          <label className="form-field"><span>{clarityLabels.internalUnitCost}</span><input aria-label={`Costo unitario ${index+1}`} type="number" step="0.0001" min="0" value={line.unitCost} onChange={e=>change(index,'unitCost',e.target.value)} placeholder={clarityLabels.missingCost}/></label>
@@ -312,10 +365,14 @@ export function BudgetEditor({orderId,seed,seedVersion,versions=[],caseFile,onCh
        <div className="flex gap-3 mt-4 flex-wrap"><Button type="button" variant="default" size="sm" onClick={()=>setLines([...lines,emptyLine()])}><Plus size={14}/>Agregar partida (material o adicional)</Button>
         <Button type="button" variant="ghost" size="sm" onClick={()=>setLines([...lines,emptyLine('Trabajo')])}><Plus size={14}/>Agregar mano de obra</Button></div>
        <div className="budget-tally">{!internal&&<><div><span>{clarityLabels.internalCost}</span><strong>{totals.costComplete?money(totals.cost):clarityLabels.missingCost}</strong></div>
-         <div><span>Subtotal al cliente</span><strong>{totals.priceComplete?money(totals.subtotal):clarityLabels.missingPrice}</strong></div><div><label htmlFor="budget-discount">Descuento</label><input id="budget-discount" type="number" min="0" step="0.01" value={discount} onChange={e=>setDiscount(e.target.value)}/></div></>}
+         <div><span>Subtotal al cliente</span><strong>{totals.priceComplete?money(totals.subtotal):clarityLabels.missingPrice}</strong></div>
+         {totals.priceComplete&&kindRows(totals.priceByKind).map(row=><div key={row.label} className={styles.kindRow}><span>{row.label}</span><strong>{money(row.amount)}</strong></div>)}
+         <div><label htmlFor="budget-discount">Descuento</label><input id="budget-discount" type="number" min="0" step="0.01" value={discount} onChange={e=>setDiscount(e.target.value)}/></div></>}
+        {internal&&totals.costComplete&&kindRows(totals.costByKind).map(row=><div key={row.label} className={styles.kindRow}><span>{row.label}</span><strong>{money(row.amount)}</strong></div>)}
         <div className="grand-total"><span>{internal?clarityLabels.internalCost:'Total del presupuesto'}</span><strong>{internal?(totals.costComplete?money(totals.cost):clarityLabels.missingCost):totals.priceComplete?money(totals.total):clarityLabels.missingPrice}</strong></div>
         {!internal&&<div className={totals.margin!==null&&totals.margin<0?styles.loss:undefined}><span>{clarityLabels.internalMargin}</span><strong>{totals.margin===null?clarityLabels.missingCost:money(totals.margin)}</strong></div>}
         </div>
+       {!internal&&<AdditionalSummary items={savedAdditional}/>}
        <label className="form-field"><span>Observaciones{latest?' / motivo del cambio *':''}</span><textarea value={reason} onChange={e=>setReason(e.target.value)} required={!!latest} placeholder="Alcance del trabajo, condiciones o motivo de esta versión"/></label>
        <p className="field-hint">{ADDITIONAL_REASON_HINT}</p>
         <div className="budget-actions">{onClosed&&<Button type="button" variant="outline" onClick={onClosed}>Cancelar</Button>}

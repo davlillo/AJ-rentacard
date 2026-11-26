@@ -14,7 +14,8 @@ import {operationMoney} from '@/controladores/operation-money';
 import {diaryHref} from '@/controladores/linked-money';
 import type {CaseFile} from '@/lib/supabase/cases';
 import type {Reservation} from '@/lib/supabase/reservations';
-import styles from './rental-accounts.module.css';
+import styles from './rental-accounts.module.css';import {Disclosure} from '@/components/organisms/disclosure';
+
 
 type Intent='advance';
 
@@ -96,10 +97,9 @@ export function RentalAccounts({file,booking,onChange,collectionSlot,onOpenExten
         {groupedShare>0&&<span>Parte de un documento agrupado: <strong>{money(groupedShare)}</strong>. Ese importe pertenece a un documento compartido y se asigna por línea en <Link href="/cobros">Cobros</Link>; esta sección no lo cobra. </span>}
         {accounts&&accounts.pendingIssued>0&&<span>Cerrar el folio no cancela el saldo pendiente; se cobra por separado.</span>}
       </p>}
-    <details className={styles.detail}>
-      <summary>Detalle de importes</summary>
+    <Disclosure className={styles.detail} label="Detalle de importes">
       <RentalBillingDetail file={file}/>
-    </details>
+    </Disclosure>
     <div className={styles.actions}>
       <p className="field-hint">Tres acciones mueven el dinero de este alquiler: <strong>emitir</strong> documenta lo que el
         cliente debe, <strong>cobrar</strong> registra el dinero recibido y <strong>aplicar un anticipo</strong> usa dinero ya

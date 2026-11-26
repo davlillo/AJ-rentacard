@@ -134,6 +134,22 @@ def agreement_checks(page):
         agreement.get_by_role('button', name='Descargar detalle (PDF)', exact=True).click()
     pending.value.save_as(ROOT / 'client-detail.pdf')
     downloads.append('client-detail.pdf')
+    # The short agreements block is shown open: heading and field visible without a click.
+    notes = page.get_by_role('region', name='Acuerdos y observaciones del folio')
+    expect(notes).to_be_visible()
+    expect(notes.get_by_role('heading', name='Acuerdos y observaciones del folio')).to_be_visible()
+    expect(notes.get_by_label('Acuerdo u observaciones de la reserva', exact=True)).to_be_visible()
+    # The short cancel block behaves the same for a rental that is still not delivered.
+    fixture.booking.update(rental_state='Preparado')
+    open_folio(page)
+    cancel = page.get_by_role('region', name='Cancelar reserva no entregada')
+    expect(cancel).to_be_visible()
+    expect(cancel.get_by_role('heading', name='Cancelar reserva no entregada')).to_be_visible()
+    expect(cancel.get_by_label('Motivo de cancelación operativa', exact=True)).to_be_visible()
+    fixture.booking.update(rental_state='Entregado')
+    open_folio(page)
+    stage(page, 'Acuerdo').click()
+    expect(page.get_by_role('region', name='Acuerdo del alquiler')).to_be_visible()
     page.evaluate('window.scrollTo(0, 0)')
     page.screenshot(path=str(ROOT / 'agreement-card-1440.png'), full_page=True)
 
@@ -154,6 +170,20 @@ def delivery_checks(page):
     expect(section.get_by_role('button', name='Registrar devolución', exact=True)).to_have_count(0)
     page.evaluate('window.scrollTo(0, 0)')
     page.screenshot(path=str(ROOT / 'delivery-1440.png'), full_page=True)
+    # A successful action moves the folio by itself to the stage that now applies.
+    section.get_by_role('button', name='Iniciar devolución', exact=True).click()
+    fixture.fill_review(page, '150', '60', 'Synthetic return')
+    section.get_by_role('button', name='Registrar devolución', exact=True).click()
+    section.get_by_role('button', name='Confirmar devolución', exact=True).click()
+    expect(page.get_by_role('region', name='Cuentas del alquiler')).to_be_visible()
+    notice = page.locator('main p[role="status"]').filter(has_text='Avanzó a:')
+    expect(notice).to_have_text('Avanzó a: Cuentas')
+    # The circles still navigate by hand, and a manual pick clears the notice.
+    stage(page, 'Acuerdo').click()
+    expect(page.get_by_role('region', name='Acuerdo del alquiler')).to_be_visible()
+    expect(page.locator('main p[role="status"]').filter(has_text='Avanzó a:')).to_have_count(0)
+    page.evaluate('window.scrollTo(0, 0)')
+    page.screenshot(path=str(ROOT / 'auto-advance-1440.png'), full_page=True)
 
 
 def accounts_checks(page):
@@ -238,13 +268,30 @@ def closing_checks(page):
     hints = ['Opcional · registre un gasto solo si pagó algo de este alquiler',
              'Opcional · guarde fotos o soportes',
              'Opcional · condiciones y aceptación del contrato']
-    for hint in hints:
-        # The extras are siblings of the summary panel inside the folio, not its children.
-        block = page.locator('main details').filter(has_text=hint)
+    for hint in hints[:2]:
+        # A finished disclosure: a real button with its expanded state and a rotating chevron.
+        block = page.locator('main button[aria-expanded]').filter(has_text=hint)
         assert block.count() == 1, hint
-        expect(block.locator('summary')).to_contain_text(hint)
-        assert block.locator('input, textarea').first.is_visible() is False, \
+        expect(block).to_have_attribute('aria-expanded', 'false')
+        panel = page.locator('[id="' + block.get_attribute('aria-controls') + '"]')
+        assert panel.is_visible() is False, 'the panel of ' + hint + ' is open before any click'
+        assert block.locator('input, textarea').count() == 0, 'a form field lives inside the trigger'
+        assert panel.locator('input, textarea').first.is_visible() is False, \
             'a required-looking input is visible before opening ' + hint
+        # No default summary arrow: the chevron only rotates when the block is open.
+        chevron = block.locator('svg')
+        assert chevron.evaluate('(s)=>getComputedStyle(s).transform') == 'none', hint
+        block.click()
+        expect(block).to_have_attribute('aria-expanded', 'true')
+        expect(panel).to_be_visible()
+        assert chevron.evaluate('(s)=>getComputedStyle(s).transform') != 'none', \
+            'the chevron did not rotate when ' + hint + ' opened'
+        block.click()
+        expect(block).to_have_attribute('aria-expanded', 'false')
+    # The contract block keeps its own organism and its own disclosure.
+    contract = page.locator('main details').filter(has_text=hints[2])
+    assert contract.count() == 1, hints[2]
+    expect(contract.locator('summary')).to_contain_text(hints[2])
     # No primary button is visible before opening any collapsed block, except the
     # inline release confirm, which is the one meaningful action of this stage.
     assert primary_buttons(page) == ['Confirmar entrega y liberar el vehículo'], primary_buttons(page)
@@ -259,13 +306,16 @@ def closing_checks(page):
 
 
 def primary_buttons(page):
-    """Visible buttons whose own background is the brand red (the primary style)."""
+    """Visible buttons whose own background is the brand red (the primary style).
+    checkVisibility() is required: a closed <details> still reports a layout box for its
+    children in this Chromium, so a bounding box alone would count hidden primaries."""
     return page.evaluate("""() => {
       const visible = element => {
         const box = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return box.width > 0 && box.height > 0 && style.visibility !== 'hidden'
-          && style.display !== 'none' && Number(style.opacity) > 0;
+          && style.display !== 'none' && Number(style.opacity) > 0
+          && element.checkVisibility();
       };
       const isPrimary = element => {
         const match = getComputedStyle(element).backgroundColor.match(/rgba?\\((\\d+), (\\d+), (\\d+)/);

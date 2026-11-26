@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {allocationSummary,classificationChoice,classificationError,costFinancialAccess,reconcileCosts,supplierSummary} from '../src/controladores/workshop-cost-workspace';
 import type {WorkshopCost} from '../src/lib/supabase/workshop';
 
@@ -39,4 +40,15 @@ test('Classification requires explicit taxonomy, approved same-job scope and aud
   assert.equal(classificationError('Interno','',[],'Fleet maintenance',true),'');
   assert.equal(classificationError('Absorbido','',[],'Business decision',false),'');
   assert.equal(classificationError('Incluido','approved',['approved'],'Scope checked',false),'');
+});
+test('Registrar costo is a modal: one trigger, the question inline and no second inline entry alive',()=>{
+  const source=readFileSync(new URL('../src/components/organisms/workshop-costs.tsx',import.meta.url),'utf8');
+  assert.match(source,/DialogTrigger/);
+  assert.match(source,/classificationOptions\(/);
+  assert.match(source,/costClassificationQuestion/);
+  assert.equal(source.includes('styles.entry} aria-label="Registrar costo"'),false);
+  // The detail classification command and its approved-scope validation are preserved.
+  assert.match(source,/ClassificationForm/);
+  assert.match(source,/classificationError/);
+  assert.match(source,/costDispositions/);
 });

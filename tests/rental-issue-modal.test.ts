@@ -84,7 +84,7 @@ test('only the amount, the emission date, the due date and the reason are editab
   assert.match(markup,/<input type="date" required="" name="dueOn" value="2026-12-07"\/>/);
   assert.match(markup,/<textarea name="reason" required=""><\/textarea>/);
   // The period dates are prefilled from the agreement and live in a collapsed disclosure.
-  assert.match(markup,/<summary>Modificar las fechas del período<\/summary>/);
+  assert.match(markup,/<button[^>]*aria-expanded/);
   assert.doesNotMatch(markup,/<details[^>]*open/);
   assert.match(markup,/<input type="date" required="" name="startsOn" value="2026-11-01"\/>/);
   assert.match(markup,/<input type="date" required="" name="endsOn" value="2026-11-07"\/>/);

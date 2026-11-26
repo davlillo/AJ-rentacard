@@ -14,7 +14,7 @@ import {
   removedJargonLabels,
   type ClarityQuote,
 } from '../src/controladores/budget-clarity';
-import {budgetDraftTotals} from '../src/controladores/budget-draft';
+import {budgetAdditionalItems,budgetDraftTotals,type BudgetQuoteForAdditionals} from '../src/controladores/budget-draft';
 
 function quote(id:string,revision:number,status:string):ClarityQuote{
   return {id,revision,status,snapshot:{lines:[
@@ -132,4 +132,22 @@ test('Plain wording replaces the old jargon labels',()=>{
 test('The reason guidance records an agreement without claiming the extra is approved',()=>{
   assert.match(ADDITIONAL_REASON_HINT,/acordó con el cliente/);
   assert.equal(/aprob/i.test(ADDITIONAL_REASON_HINT),false);
+});
+
+test('The extra line saved by the cost flow is reported as an additional item with its revision state',()=>{
+  const parent=quote('q1',1,'Aprobado');
+  const plan=planAdditionalItem(parent);
+  const priced={...plan.lines[plan.newLineIndex],description:'Inyectores',unitPrice:'150',unitCost:'40'};
+  const versions:BudgetQuoteForAdditionals[]=[
+    {id:'q1',revision:1,parent_id:null,status:'Aprobado',snapshot:{lines:parent.snapshot.lines}},
+    {id:'q2',revision:2,parent_id:'q1',status:'Borrador',
+      snapshot:{lines:[...parent.snapshot.lines,priced].map(line=>({description:line.description,
+        quantity:Number(line.quantity),unitPrice:Number(line.unitPrice),unitCost:line.unitCost===''?null:Number(line.unitCost)}))}},
+  ];
+  const items=budgetAdditionalItems(versions,[{id:'c1',description:'Inyectores',amount:40,
+    disposition:'Adicional autorizado',estimate_id:'q1'}]);
+  assert.deepEqual(items.lines,[{quoteId:'q2',revision:2,status:'Borrador',description:'Inyectores',amount:150}]);
+  assert.deepEqual(items.outside,[{costId:'c1',description:'Inyectores',amount:40}]);
+  // The approved version stays the only chargeable scope: the extra is still pending.
+  assert.equal(items.lines[0].status,'Borrador');
 });

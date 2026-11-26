@@ -1,13 +1,14 @@
 """Verify the real dossier UI using synthetic HTTP; never forward business or Auth requests."""
 import copy
 import json
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import expect, sync_playwright
 
-APP = 'http://127.0.0.1:3030'
+APP = os.environ.get('AJ_APP', 'http://127.0.0.1:3030')
 ROOT = Path('test-results/vehicle-dossier')
 USER = '00000000-0000-4000-8000-000000009901'
 CUSTOMER = {'id': 'synthetic-customer', 'name': 'Synthetic dossier customer', 'phone': '',

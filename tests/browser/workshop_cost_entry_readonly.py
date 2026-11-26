@@ -1,15 +1,16 @@
-﻿"""Exercise the unified workshop cost entry and the collections emphasis with
+"""Exercise the unified workshop cost entry and the collections emphasis with
 synthetic HTTP only. Unknown business requests abort and no real API, database
 or business write is ever performed."""
 import copy
 import json
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse, quote
 
 from playwright.sync_api import expect, sync_playwright
 
-APP = 'http://127.0.0.1:3030'
+APP = os.environ.get('AJ_APP', 'http://127.0.0.1:3030')
 ROOT = Path('test-results/workshop-cost-entry')
 USER = '00000000-0000-4000-8000-000000009901'
 CUSTOMER = {'id': 'synthetic-customer', 'name': 'Synthetic workshop customer', 'phone': '',
@@ -47,12 +48,15 @@ FILES = [{'id': 'private', 'vehicle_id': VEHICLE['id'], 'order_id': JOB['id'], '
           'name': 'Synthetic inspection.pdf', 'mime': 'application/pdf', 'purpose': 'Ingreso',
           'financial': False, 'size': 10, 'created_at': '2026-11-10T12:00:00Z'}]
 STATE = {'denied': set(), 'finance': True, 'quotes': [copy.deepcopy(QUOTE)], 'pay_fails': False,
-         'purchase_fails': False, 'status': 'Diagnóstico'}
+         'purchase_fails': False, 'status': 'Diagnóstico', 'classify_fails': False, 'revision_fails': False,
+         'quote_status': 'Aprobado', 'internal': False}
 BLOCKED, ERRORS, COMMANDS = [], [], []
+LAST_PURCHASE = {}
 
 
 def order():
-    return {**JOB, 'status': STATE['status']}
+    return {**JOB, 'status': STATE['status'], 'internal_job': STATE['internal'],
+            'internalJob': STATE['internal']}
 
 
 def purchased_cost(payload):
@@ -124,14 +128,42 @@ def protect(route):
                                 'balancePolicy': 'Synthetic fixture'})
             return
         if resource == 'execute_cost_command':
-            assert body['command'] == 'purchase', body
+            assert body['command'] in ['purchase', 'classify'], body
             assert body['idempotency_key'], body
-            COMMANDS.append({'command': 'purchase', 'payload': body['payload'],
+            COMMANDS.append({'command': body['command'], 'payload': body['payload'],
                              'key': body['idempotency_key']})
+            if body['command'] == 'classify':
+                if STATE['classify_fails']:
+                    route.fulfill(status=400, json={'code': '42000', 'message': 'SYNTHETIC_CLASSIFY_FAILURE'})
+                    return
+                saved = purchased_cost(LAST_PURCHASE)
+                classify_payload = body['payload']
+                saved.update(disposition=classify_payload['disposition'],
+                             estimate_id=classify_payload.get('estimateId'), version=2,
+                             reason=classify_payload.get('reason', ''))
+                route.fulfill(json=saved)
+                return
             if STATE['purchase_fails']:
                 route.fulfill(status=400, json={'code': '42000', 'message': 'SYNTHETIC_PURCHASE_FAILURE'})
                 return
+            LAST_PURCHASE.clear()
+            LAST_PURCHASE.update(body['payload'])
             route.fulfill(json=purchased_cost(body['payload']))
+            return
+        if resource == 'record_connected_quote':
+            COMMANDS.append({'command': 'revision', 'payload': body['payload'],
+                             'key': body['idempotency_key']})
+            if STATE['revision_fails']:
+                route.fulfill(status=400, json={'code': '42000', 'message': 'SYNTHETIC_REVISION_FAILURE'})
+                return
+            parent = next(quote for quote in STATE['quotes'] if quote['id'] == body['payload']['parentId'])
+            created = {**copy.deepcopy(parent), 'id': f"synthetic-quote-draft-{len(STATE['quotes'])}",
+                       'revision': parent['revision'] + 1, 'parent_id': parent['id'], 'status': 'Borrador',
+                       'reason': body['payload']['reason'],
+                       'snapshot': {**copy.deepcopy(parent['snapshot']),
+                                    'lines': copy.deepcopy(body['payload']['lines'])}}
+            STATE['quotes'].append(created)
+            route.fulfill(json=copy.deepcopy(created))
             return
         if resource == 'pay_direct_purchase':
             COMMANDS.append({'command': 'pay', 'costId': body['cost_id'], 'payload': body['payload'],
@@ -179,10 +211,12 @@ def commands(name):
 
 def open_entry(page):
     page.get_by_role('button', name='Registrar costo', exact=True).click()
-    entry = page.get_by_role('region', name='Registrar costo', exact=True)
-    expect(entry).to_be_visible()
-    expect(entry.get_by_role('heading', name='¿Cuánto pagaste?', exact=True)).to_be_visible()
-    return entry
+    dialog = page.get_by_role('dialog')
+    expect(dialog).to_be_visible()
+    expect(dialog.get_by_role('heading', name='Registrar costo', exact=True)).to_be_visible()
+    expect(dialog.get_by_role('heading', name='¿Cuánto pagaste?', exact=True)).to_be_visible()
+    expect(page.get_by_role('region', name='Registrar costo', exact=True)).to_have_count(0)
+    return dialog
 
 
 def fill_cost(page, description='Synthetic part'):
@@ -193,12 +227,21 @@ def fill_cost(page, description='Synthetic part'):
     page.get_by_label('Referencia de factura y línea', exact=True).fill('SYNTHETIC-REF')
 
 
+def classify(entry, label, reason='Synthetic classification reason'):
+    entry.get_by_role('button', name=label, exact=True).click()
+    entry.get_by_label('Motivo de la decisión', exact=True).fill(reason)
+
+
+def save(entry, label='Guardar costo de compra'):
+    entry.get_by_role('button', name=label, exact=True).click()
+
+
 def entry_flows(page, width):
-    """The single entry with its three answers and the canonical commands."""
+    """The modal with its three payment answers, the classification and the retries."""
     go(page)
     COMMANDS.clear()
     entry = open_entry(page)
-    # One obvious entry: the three answers, and no mechanism buttons.
+    # One obvious entry: the three answers, the question, and no mechanism buttons.
     expect(entry.get_by_role('button', name='Todo', exact=True)).to_be_visible()
     expect(entry.get_by_role('button', name='Una parte', exact=True)).to_be_visible()
     expect(entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
@@ -208,21 +251,99 @@ def entry_flows(page, width):
     expect(entry.get_by_role('button', name='Vincular gasto existente', exact=True)).to_be_visible()
     screenshot(page, 'entry-three-answers', width)
 
-    # Credit purchase: the cost is acquired and the supplier payment stays pending.
-    COMMANDS.clear()
+    # Credit purchase, already included: acquired and classified against the approved quote.
     entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
                       exact=True).click()
+    expect(entry.get_by_role('group', name='¿Este costo está incluido en el presupuesto?',
+                             exact=True).first).to_be_visible()
+    expect(entry.get_by_role('button', name='Sí, ya está incluido', exact=True)).to_be_visible()
+    expect(entry.get_by_role('button', name='No, es un adicional', exact=True)).to_be_visible()
+    expect(entry.get_by_role('button', name='A cargo del negocio', exact=True)).to_be_visible()
     fill_cost(page, 'Synthetic credit part')
-    page.get_by_role('button', name='Guardar costo de compra', exact=True).click()
-    expect(page.get_by_role('status').filter(has_text='pendiente')).to_be_visible()
+    classify(entry, 'Sí, ya está incluido')
+    save(entry)
+    expect(page.get_by_role('status').filter(has_text='incluido en el presupuesto aprobado')).to_be_visible()
     assert len(commands('purchase')) == 1, COMMANDS
+    assert len(commands('classify')) == 1, COMMANDS
     assert not commands('pay'), COMMANDS
     assert commands('purchase')[0]['payload']['description'] == 'Synthetic credit part'
     assert 'disposition' not in commands('purchase')[0]['payload']
+    assert commands('classify')[0]['payload']['disposition'] == 'Incluido'
+    assert commands('classify')[0]['payload']['estimateId'] == QUOTE['id']
+    assert commands('classify')[0]['payload']['reason'] == 'Synthetic classification reason'
     # The later supplier payment action is preserved for the credit state.
     expect(page.get_by_text('Registrar pago al proveedor', exact=True).first).to_be_visible()
     page.wait_for_timeout(300)
     screenshot(page, 'credit-pending-supplier', width)
+
+    # An extra asks its client price and appends it to a new draft revision.
+    COMMANDS.clear()
+    entry = open_entry(page)
+    entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
+                      exact=True).click()
+    fill_cost(page, 'Synthetic extra part')
+    classify(entry, 'No, es un adicional', 'Synthetic extra agreed')
+    expect(entry.get_by_text('debe aprobar el nuevo total', exact=False)).to_be_visible()
+    entry.get_by_label('Precio al cliente de este adicional (USD)', exact=True).fill('60.00')
+    screenshot(page, 'extra-price-and-notice', width)
+    save(entry)
+    expect(page.get_by_role('dialog')).to_have_count(0)
+    expect(page.get_by_role('status').filter(has_text='debe aprobar el nuevo total')).to_be_visible()
+    assert len(commands('purchase')) == 1, COMMANDS
+    assert len(commands('classify')) == 1, COMMANDS
+    print('REVISIONS', width, len(commands('revision')), [c['command'] for c in COMMANDS])
+    assert len(commands('revision')) == 1, COMMANDS
+    assert commands('classify')[0]['payload']['disposition'] == 'Adicional autorizado'
+    revision = commands('revision')[0]['payload']
+    assert revision['parentId'] == QUOTE['id'], revision
+    assert revision['lines'][-1]['unitPrice'] == '60.00', revision
+    assert revision['lines'][-1]['description'] == 'Synthetic extra part'
+    assert len(revision['lines']) == 2, 'the approved scope is copied as a full revision'
+    page.wait_for_timeout(300)
+
+    # The budget revision fails after the cost: keep the cost and retry only the revision.
+    COMMANDS.clear()
+    STATE['revision_fails'] = True
+    entry = open_entry(page)
+    entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
+                      exact=True).click()
+    fill_cost(page, 'Synthetic extra retry')
+    classify(entry, 'No, es un adicional', 'Synthetic extra retry reason')
+    entry.get_by_label('Precio al cliente de este adicional (USD)', exact=True).fill('30.00')
+    save(entry)
+    expect(page.get_by_role('alert').first).to_be_visible()
+    pending = page.get_by_role('dialog')
+    expect(pending).to_be_visible()
+    expect(page.get_by_text('NO se agregó al presupuesto', exact=False)).to_be_visible()
+    assert len(commands('purchase')) == 1, COMMANDS
+    assert len(commands('revision')) == 1, COMMANDS
+    assert len(commands('classify')) == 1, COMMANDS
+    screenshot(page, 'revision-failed-cost-kept', width)
+    STATE['revision_fails'] = False
+    pending.get_by_role('button', name='Reintentar agregar el adicional al presupuesto',
+                        exact=True).click()
+    expect(page.get_by_role('status').filter(has_text='debe aprobar el nuevo total')).to_be_visible()
+    assert len(commands('purchase')) == 1, COMMANDS
+    assert len(commands('revision')) == 2, COMMANDS
+    assert commands('revision')[0]['key'] == commands('revision')[1]['key']
+
+    # A failed classification keeps the cost, preserves the typing and retries only it.
+    COMMANDS.clear()
+    STATE['classify_fails'] = True
+    entry = open_entry(page)
+    entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
+                      exact=True).click()
+    fill_cost(page, 'Synthetic classify retry')
+    classify(entry, 'Sí, ya está incluido', 'Synthetic preserved reason')
+    save(entry)
+    expect(page.get_by_role('alert').first).to_be_visible()
+    expect(entry.get_by_label('Motivo de la decisión', exact=True)).to_have_value('Synthetic preserved reason')
+    assert len(commands('purchase')) == 1, COMMANDS
+    STATE['classify_fails'] = False
+    entry.get_by_role('button', name='Reintentar la relación con el presupuesto', exact=True).click()
+    assert len(commands('purchase')) == 1, COMMANDS
+    assert len(commands('classify')) == 2, COMMANDS
+    assert commands('classify')[0]['key'] == commands('classify')[1]['key']
 
     # Paid in part: purchase plus a first supplier payment with the right amount.
     COMMANDS.clear()
@@ -230,33 +351,36 @@ def entry_flows(page, width):
     entry = open_entry(page)
     entry.get_by_role('button', name='Una parte', exact=True).click()
     fill_cost(page, 'Synthetic partial part')
-    page.get_by_label('Importe pagado ahora (USD)', exact=True).fill('12.50')
-    page.get_by_label('Cuenta o caja del pago', exact=True).fill('Caja')
-    page.get_by_role('button', name='Guardar costo y primer pago', exact=True).click()
+    entry.get_by_label('Importe pagado ahora (USD)', exact=True).fill('12.50')
+    entry.get_by_label('Cuenta o caja del pago', exact=True).fill('Caja')
+    classify(entry, 'Sí, ya está incluido')
+    save(entry, 'Guardar costo y primer pago')
     expect(page.get_by_role('alert').first).to_be_visible()
-    pending = page.get_by_role('region', name='Registrar costo', exact=True)
+    pending = page.get_by_role('dialog')
     expect(pending).to_contain_text('Pendiente con el proveedor')
     expect(pending).to_contain_text('$38.50')
     assert len(commands('purchase')) == 1, COMMANDS
     assert len(commands('pay')) == 1, COMMANDS
+    assert not commands('classify'), 'the payment failed before the classification'
     assert commands('pay')[0]['payload']['amount'] == '12.50'
     assert commands('pay')[0]['costId'] == 'synthetic-cost-new'
     screenshot(page, 'partial-payment-failed', width)
 
-    # The retry pays only the payment, with the same identity and no second cost.
+    # The retry pays only the payment, with the same identity, then classifies.
     STATE['pay_fails'] = False
     pending.get_by_role('button', name='Reintentar solo el pago al proveedor',
                         exact=True).click()
-    expect(page.get_by_role('status').filter(has_text='Pago al proveedor confirmado')).to_be_visible()
+    expect(page.get_by_role('status').filter(has_text='Queda pendiente con el proveedor')).to_be_visible()
     assert len(commands('purchase')) == 1, COMMANDS
+    assert commands('pay')[0]['key'] == commands('pay')[1]['key']
+    assert len(commands('classify')) == 1, COMMANDS
 
-    # Paid in full: the shared expense dialog records one cash outflow.
+    # Paid in full: the modal closes and the shared expense dialog records one cash outflow.
     COMMANDS.clear()
     entry = open_entry(page)
     entry.get_by_role('button', name='Todo', exact=True).click()
     entry.get_by_role('button', name='Registrar el gasto pagado', exact=True).click()
     dialog = page.get_by_role('dialog')
-    expect(dialog).to_be_visible()
     expect(dialog.get_by_role('heading', name='Registrar gasto', exact=True)).to_be_visible()
     dialog.get_by_label('Concepto', exact=True).fill('Synthetic paid expense')
     dialog.get_by_label('Importe (USD)', exact=True).fill('30.00')
@@ -271,30 +395,68 @@ def entry_flows(page, width):
     allocation = commands('linked-expense')[0]['payload']['allocations'][0]
     assert allocation['orderId'] == JOB['id'], allocation
 
-    # A failed purchase never attempts a payment.
+    # A failed purchase never attempts a payment and preserves the typing.
     COMMANDS.clear()
     STATE['purchase_fails'] = True
     entry = open_entry(page)
     entry.get_by_role('button', name='Una parte', exact=True).click()
     fill_cost(page, 'Synthetic failing purchase')
-    page.get_by_label('Importe pagado ahora (USD)', exact=True).fill('5.00')
-    page.get_by_label('Cuenta o caja del pago', exact=True).fill('Caja')
-    page.get_by_role('button', name='Guardar costo y primer pago', exact=True).click()
+    entry.get_by_label('Importe pagado ahora (USD)', exact=True).fill('5.00')
+    entry.get_by_label('Cuenta o caja del pago', exact=True).fill('Caja')
+    classify(entry, 'Sí, ya está incluido')
+    save(entry, 'Guardar costo y primer pago')
     expect(page.get_by_role('alert').first).to_be_visible()
+    expect(entry.get_by_label('Repuesto o servicio adquirido', exact=True)).to_have_value(
+        'Synthetic failing purchase')
     assert len(commands('purchase')) == 1, COMMANDS
     assert not commands('pay'), COMMANDS
     STATE['purchase_fails'] = False
 
-    # Keyboard: the answers are reachable and the error is preserved.
-    entry = page.get_by_role('region', name='Registrar costo', exact=True)
-    expect(entry).to_be_visible()
-    expect(page.get_by_role('alert').first).to_be_visible()
+    # Keyboard: the answers stay reachable and the error is preserved.
     entry.get_by_role('button', name='Una parte', exact=True).focus()
     page.keyboard.press('Enter')
     expect(entry.get_by_role('button', name='Una parte', exact=True)).to_have_attribute('aria-pressed', 'true')
     expect(entry.get_by_label('Importe pagado ahora (USD)', exact=True)).to_be_visible()
-    expect(page.get_by_role('alert').first).to_be_visible()
+    expect(entry.get_by_label('Repuesto o servicio adquirido', exact=True)).to_have_value(
+        'Synthetic failing purchase')
     screenshot(page, 'entry-error-preserved', width)
+    page.keyboard.press('Escape')
+    expect(page.get_by_role('dialog')).to_have_count(0)
+    expect(page.get_by_role('button', name='Registrar costo', exact=True)).to_be_focused()
+
+    # No approved quote yet: the cost is saved pending with a plain note.
+    COMMANDS.clear()
+    STATE['quotes'][0]['status'] = 'Borrador'
+    go(page)
+    entry = open_entry(page)
+    entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
+                      exact=True).click()
+    fill_cost(page, 'Synthetic pending scope')
+    classify(entry, 'Sí, ya está incluido')
+    expect(entry.get_by_text('No hay un presupuesto aprobado todavía', exact=False)).to_be_visible()
+    save(entry)
+    expect(page.get_by_role('status').filter(has_text='queda pendiente')).to_be_visible()
+    assert len(commands('purchase')) == 1, COMMANDS
+    assert not commands('classify'), COMMANDS
+    STATE['quotes'][0]['status'] = 'Aprobado'
+
+    # Internal job: the sale options are hidden and the cost saves pending.
+    STATE['internal'] = True
+    go(page)
+    COMMANDS.clear()
+    entry = open_entry(page)
+    entry.get_by_role('button', name='Nada todavía (queda pendiente con el proveedor)',
+                      exact=True).click()
+    expect(entry.get_by_role('button', name='Sí, ya está incluido', exact=True)).to_have_count(0)
+    expect(entry.get_by_role('button', name='No, es un adicional', exact=True)).to_have_count(0)
+    expect(entry.get_by_role('button', name='A cargo del negocio', exact=True)).to_be_visible()
+    expect(entry.get_by_text('Trabajo interno', exact=False)).to_be_visible()
+    fill_cost(page, 'Synthetic internal part')
+    screenshot(page, 'internal-pending', width)
+    save(entry)
+    assert len(commands('purchase')) == 1, COMMANDS
+    assert not commands('classify'), COMMANDS
+    STATE['internal'] = False
 
 
 def collections_flow(page, width):
@@ -340,6 +502,7 @@ def main():
         try:
             for width in [1440, 1024, 390, 320]:
                 page.set_viewport_size({'width': width, 'height': 1000})
+                STATE['quotes'] = [copy.deepcopy(QUOTE)]
                 entry_flows(page, width)
                 collections_flow(page, width)
 
@@ -368,7 +531,11 @@ def main():
               'partialPaymentIssuesOneCashOutflow': True, 'partialFailureKeepsCostAndPending': True,
               'retryOnlyPaymentSameIdentity': True, 'paidInFullUsesSharedExpenseDialog': True,
               'collectionsKeepsCustomerReceivableFirst': True, 'supplierCreditApart': True,
-              'permissionRevocationHidesMoney': True, 'blockedRequests': BLOCKED, 'browserErrors': ERRORS}
+              'permissionRevocationHidesMoney': True, 'modalOpensInsteadOfInlineForm': True,
+              'classificationQuestionInline': True, 'includedClassifiesWithApprovedScope': True,
+              'extraAddsDraftRevisionWithPrice': True, 'revisionFailureKeepsCostAndRetry': True,
+              'classificationFailureKeepsTyping': True, 'internalAndNoScopeSavePending': True,
+              'blockedRequests': BLOCKED, 'browserErrors': ERRORS}
     (ROOT / 'verification.json').write_text(json.dumps(result, indent=2), encoding='utf8')
     print(json.dumps(result))
 

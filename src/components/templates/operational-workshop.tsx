@@ -14,6 +14,7 @@ import {AdaptiveTable} from '@/components/organisms/adaptive-table';
 import {Pagination,usePagination} from '@/components/organisms/pagination';
 import {workshopClientVehicles} from '@/controladores/workshop-client-vehicles';
 import styles from './operational-workshop.module.css';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 export function WorkshopScreen(){const {source}=useBusiness();return source==='supabase'?<WorkshopWorkspace/>:<TallerScreen/>;}
 function WorkshopWorkspace(){
@@ -53,9 +54,9 @@ function WorkshopWorkspace(){
           <td><Button variant="outline" size="sm" asChild><Link href={orderHref(o.id)}>Abrir folio</Link></Button></td></tr>;})}</tbody></AdaptiveTable></div>
         {!jobs.length&&<p className="module-empty">No hay trabajos en esta vista.</p>}<Pagination {...page}/></section>
     </>}
-    <details open className="mt-6 text-sm"><summary className="font-semibold">Vehículos de clientes del taller</summary><section className="panel mt-4"><div className="table-scroll"><AdaptiveTable><thead><tr><th>Placa</th><th>Vehículo</th><th/></tr></thead><tbody>
+    <Disclosure label="Vehículos de clientes del taller" defaultOpen><section className="panel mt-4"><div className="table-scroll"><AdaptiveTable><thead><tr><th>Placa</th><th>Vehículo</th><th/></tr></thead><tbody>
       {clientVehicles.map(v=><tr key={v.id}><td>{v.plate||'Sin registrar'}</td><td>{v.brand} {v.model}</td><td><Link className="text-link" href={vehicleHref(v.id)}>Ver expediente →</Link></td></tr>)}</tbody></AdaptiveTable></div>
       {!clientVehicles.length&&<p className="module-empty">No hay vehículos de clientes con trabajos abiertos.</p>}
-      <div className="p-4"><Button variant="outline" disabled={!can('vehicles.write')} onClick={()=>open('vehiculo','client')}>Registrar vehículo de cliente</Button></div></section></details>
+      <div className="p-4"><Button variant="outline" disabled={!can('vehicles.write')} onClick={()=>open('vehiculo','client')}>Registrar vehículo de cliente</Button></div></section></Disclosure>
   </>;
 }

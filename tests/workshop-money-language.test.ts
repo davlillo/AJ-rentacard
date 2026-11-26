@@ -128,7 +128,7 @@ test('An internal job shows an honest unavailable state instead of a zero',()=>{
 test('No command, RPC or money helper changed',()=>{
   const source=read(COLLECTIONS);
   assert.equal(source.includes("execute('bill_scope'"),true);
-  assert.equal(source.includes("orderId:job!.id,date:String(form.get('date')),dueOn:String(form.get('dueOn'))"),true);
+  assert.equal(source.includes("orderId:job.id,date:String(form.get('date')),dueOn:String(form.get('dueOn'))"),true);
   assert.equal((source.match(/execute\(/g)??[]).length,1);
   assert.equal(source.includes('caseCommand('),false);
   assert.equal(source.includes('createSupabaseBrowserClient'),false);
@@ -165,13 +165,13 @@ test('The collections card leads with three amounts and keeps the rest inside th
   const source=read(BILLING);
   // The five row canonical block stays available, but only inside the collapsed detail.
   assert.equal(source.includes('<dl className="collection-money"'),true);
-  assert.equal(source.indexOf('<details className="collection-detail">')<source.indexOf('<dl className="operation-amounts">'),true);
+  assert.equal(source.indexOf('collection-detail')<source.indexOf('<dl className="operation-amounts">'),true);
   assert.equal(source.includes('className="collection-money"'),true);
   assert.equal(source.includes("agreedLabel=operation.internal&&!isRental?'Costo presupuestado':'Importe acordado'"),true);
   for(const label of ['<dt>Cobrado</dt>','<dt>Por cobrar</dt>'])
     assert.equal(source.includes(label),true,`the card does not show "${label}"`);
-  assert.equal(source.includes('<details className="collection-detail"><summary>Detalle</summary>'),true);
-  const detail=source.slice(source.indexOf('<details className="collection-detail">'));
+  assert.equal(source.includes('collection-detail'),true);
+  const detail=source.slice(source.indexOf('collection-detail'));
   assert.equal(detail.includes('<dl className="operation-amounts">'),true,'the detail does not render the secondary figures');
   for(const label of ['Importes emitidos al cliente','Anticipos vinculados sin aplicar'])
     assert.equal(detail.includes(label),true,`the detail does not keep "${label}"`);

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
-import {useEffect,useRef,useState,type ReactNode} from 'react';
+import {useCallback,useEffect,useRef,useState,type ReactNode} from 'react';
 import {RefreshCw} from 'lucide-react';
 import {useBusiness} from '@/hooks/use-business';
 import {PageHeading} from '@/components/molecules/page-heading';
@@ -11,20 +11,22 @@ import {RegistryDetails} from '@/components/organisms/registry-details';
 import {WorkshopStageProgress} from '@/components/organisms/workshop-stage-progress';
 import {WorkshopCosts} from '@/components/organisms/workshop-costs';
 import {WorkshopDeliveryReview} from '@/components/organisms/workshop-delivery';
-import {WorkshopCollections} from '@/components/organisms/workshop-collections';
+import {WorkshopCollections,WorkshopIssueForm} from '@/components/organisms/workshop-collections';
 import {CaseQuotes} from '@/components/organisms/case-quotes';
 import {BudgetEditor,type BudgetEditorSeed} from '@/components/templates/operational-estimates';
 import {workshopPipeline,resolvedSection,workshopMoney,workshopSection,type WorkshopSection} from '@/controladores/workshop-pipeline';
 import {workshopMoneyLabels,workshopCollectionState} from '@/controladores/workshop-money-language';
+import {stageAdvance,typingInFolio} from '@/controladores/stage-advance';
 import {money} from '@/controladores/finanzas';
 import {folio} from '@/controladores/folios';
 import {clarityLabels,RE_APPROVAL_NOTICE,needsClientApproval} from '@/controladores/budget-clarity';
 import {executeTaskCommand,normalizeResponsibleName,responsibleNameMaxLength,responsibleNameMigrationMessage,workshopAssignees,
   type WorkshopAssignee} from '@/lib/supabase/tasks';
 import {orderHref,vehicleHref,type CaseFile,type CaseOrder} from '@/lib/supabase/cases';
-import styles from './workshop-case-screen.module.css';
+import styles from './workshop-case-screen.module.css';import {TaskBoard} from '@/components/organisms/task-board';
 
-export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,error}:{
+
+export function WorkshopCaseScreen({file,job,onChange:onReload,receptionSlot,filesSlot,error}:{
   file:CaseFile;job:CaseOrder;onChange:()=>Promise<void>;receptionSlot:ReactNode;filesSlot:ReactNode;error?:string;
 }){
   const {data,can,toast}=useBusiness();
@@ -36,19 +38,47 @@ export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,er
   useEffect(()=>{setSection(resolvedSection(workshopSection(requested),job));},[requested]);
   const financial=file.financialAccess&&can('expenses.read');
   const pipeline=workshopPipeline(file,job,financial);const amounts=financial?workshopMoney(file,job.id):null;
+  // After a successful action the folio moves to the stage that now applies and says so.
+  // The circles stay as navigation and a manual pick is respected until the next action.
+  const [actionReload,setActionReload]=useState(0);const [advanceNotice,setAdvanceNotice]=useState('');
+  const sequence=useRef(0);const manualAt=useRef(0);const actionAt=useRef(0);
+  const previousCurrent=useRef<WorkshopSection|null>(null);const pipelineRef=useRef(pipeline);
+  const folioRef=useRef<HTMLDivElement>(null);
+  pipelineRef.current=pipeline;
+  function sectionLabel(key:WorkshopSection):string{
+    return pipeline.stages.find(stage=>stage.key===key)?.label
+      ??(key==='summary'?'Resumen':key==='documents'?'Fotos y documentos':key);
+  }
+  // Every caller of this reload runs it after its own command succeeded: that reload is
+  // the only trigger of the automatic advance. The manual refresh uses the plain one.
+  const onChange=useCallback(async()=>{
+    actionAt.current=++sequence.current;previousCurrent.current=pipelineRef.current.current;
+    await onReload();setActionReload(value=>value+1);
+  },[onReload]);
+  useEffect(()=>{
+    if(!actionReload)return;
+    const decision=stageAdvance({previous:previousCurrent.current,current:pipeline.current,confirmed:true,
+      dirty:typingInFolio(folioRef.current),manual:manualAt.current>actionAt.current});
+    if(decision.advance&&decision.stage){
+      setSection(decision.stage);setAdvanceNotice(`Avanzó a: ${sectionLabel(decision.stage)}`);
+    }
+  },[actionReload]);
   // The price that governs the job is the approved scope; a newer draft never replaces it.
   const approvedScope=pipeline.approved?Number(pipeline.approved.snapshot.total):null;
   const pendingScope=pipeline.approved&&pipeline.latest&&pipeline.latest.id!==pipeline.approved.id?
     Number(pipeline.latest.snapshot.total):null;
   const scopeQuote=pipeline.approved??amounts?.quote;
   const scopePrice=approvedScope??amounts?.quoted??null;
+  // The approval decision is registered when the active scope is the approved
+  // revision itself; only then does the issuance of the importe make sense.
+  const decided=!!pipeline.approved&&!!pipeline.latest&&pipeline.latest.id===pipeline.approved.id;
   const scopeNote=approvedScope!==null?`Alcance aprobado · Versión ${pipeline.approved!.revision}`:
     `Última revisión · ${amounts?.quote?.status??'Por preparar'}`;
   const car=file.vehicle;
   const cover=file.files.filter(item=>item.mime.startsWith('image/')&&!item.financial).sort((a,b)=>
     Number(b.purpose==='Vehículo')-Number(a.purpose==='Vehículo')||b.created_at.localeCompare(a.created_at))[0]?.id
     ??data.vehicles.find(vehicle=>vehicle.id===car.id)?.primaryPhotoId;
-  function select(next:WorkshopSection){setSection(next);}
+  function select(next:WorkshopSection){manualAt.current=++sequence.current;setAdvanceNotice('');setSection(next);}
   // One editor seed for the first quote and for editing an existing draft: the same
   // canonical save, the same parent revision and the same re-approval notice.
   function startEditor(){
@@ -61,19 +91,20 @@ export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,er
   }
   async function savedBudget(){setSeed(null);await onChange();}
   const restricted=['budget','approval','collections'].includes(section)&&!financial;
-  return <div className={`vehicle-case ${styles.screen}`} data-testid="workshop-case">
+  return <div className={`vehicle-case ${styles.screen}`} data-testid="workshop-case" ref={folioRef}>
     <nav aria-label="Ubicación del expediente" className="mb-5"><Link href="/taller">Taller</Link> / <Link href={vehicleHref(car.id)}>{car.plate||`${car.brand} ${car.model}`}</Link> / {folio('OT',job.id)}</nav>
     <PageHeading eyebrow={job.internal_job?'MANTENIMIENTO INTERNO':'TRABAJO DE CLIENTE'}
       title={`${folio('OT',job.id)} · ${car.plate||car.brand+' '+car.model}`}
       description={`${job.service} · Estado del trabajo: ${job.status}`}
       actions={<Button variant="outline" disabled={refreshing} onClick={()=>{
-        setRefreshing(true);setRefreshError('');void onChange().then(()=>toast('Expediente actualizado.'))
+        setRefreshing(true);setRefreshError('');void onReload().then(()=>toast('Expediente actualizado.'))
           .catch(error=>setRefreshError(error.message)).finally(()=>setRefreshing(false));
       }}><RefreshCw size={15} className={refreshing?'animate-spin':''}/>{refreshing?'Actualizando…':'Actualizar expediente'}</Button>}/>
     <div className={styles.identity}><span>{job.internal_job?'Mantenimiento interno · no es venta':'Trabajo para cliente'}</span>
       <span>{car.in_rental_fleet?'Incluido en flota de alquiler':'Fuera de flota de alquiler'}</span><span>Propiedad: {car.ownership}</span></div>
     <WorkshopStageProgress pipeline={pipeline} onSelect={select} selected={section}
-      utilities={[{key:'summary',label:'Resumen',place:'start'},{key:'documents',label:'Fotos y documentos',place:'end'}]}/>
+      utilities={[{key:'summary',label:'Resumen',place:'start'},{key:'tasks',label:'Tareas',place:'end'},{key:'documents',label:'Fotos y documentos',place:'end'}]}/>
+    {advanceNotice&&<p className={styles.advanceNotice} role="status">{advanceNotice}</p>}
     {restricted?<p className="inline-note">Información financiera restringida. Puede continuar con el diagnóstico autorizado.</p>:<>
       {section==='summary'&&<section className="panel p-5">
         <div className="case-overview"><VehicleImage vehicleId={car.id} plate={car.plate} fileId={cover} size="detail" editable onChange={onChange}/>
@@ -123,6 +154,14 @@ export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,er
         {seed&&<BudgetEditor orderId={job.id} seed={seed} onChange={onChange} onSaved={savedBudget} onClosed={()=>setSeed(null)}/>}
       </section>}
       {section==='approval'&&<section className="panel p-5"><h2 className="font-semibold mb-4">Aprobación del cliente</h2>
+        {decided&&!job.internal_job&&job.status!=='Entregado'&&<section className={styles.issueCard} aria-label="Emitir importe a cobrar">
+          <h3>Emitir importe a cobrar</h3>
+          <p>Trabajo acordado aprobado: <strong>{approvedScope===null?'Sin importe':money(approvedScope)}</strong></p>
+          <p>Registra el documento de cobro. No recibe dinero ni cambia el costo.</p>
+          {amounts&&amounts.unbilled>0?<WorkshopIssueForm file={file} job={job} onChange={onChange}/>
+            :<p className="field-hint">El alcance aprobado ya tiene su documento de cobro emitido.{' '}
+              <button type="button" className="text-link" onClick={()=>select('collections')}>Ver cobros →</button></p>}
+        </section>}
         {pipeline.latest?<CaseQuotes file={file} job={job} onChange={onChange}/>
           :<><p className="field-hint">Todavía no hay un presupuesto que el cliente pueda decidir.</p>
             <div className="mt-4"><Button onClick={()=>{select('budget');startEditor();}}>Crear el presupuesto del trabajo</Button></div></>}
@@ -139,6 +178,9 @@ export function WorkshopCaseScreen({file,job,onChange,receptionSlot,filesSlot,er
         {financial&&can('expenses.write')?<WorkshopDeliveryReview orderId={job.id} onChange={onChange}
           quoteLabels={Object.fromEntries((file.quotes??[]).map(quote=>[quote.id,`${folio('PRE',quote.folio_number)} · Versión ${quote.revision}`]))}/>:<p>La revisión final requiere autorización financiera. Estado del trabajo: {job.status}.</p>}
       </section>}
+      {section==='tasks'&&<section className="panel p-5"><h2 className="font-semibold">Tareas del trabajo</h2>
+        <p className="field-hint mt-2">Seguimiento opcional: las tareas abiertas no impiden entregar el vehículo.</p>
+        {can('tasks.read')?<div className="mt-4"><TaskBoard orderId={job.id}/></div>:<p className="mt-4">La consulta de tareas requiere autorización.</p>}</section>}
       {section==='documents'&&filesSlot}
     </>}
     {(error||refreshError)&&<p role="alert" className="form-error mt-4">{error||refreshError}</p>}

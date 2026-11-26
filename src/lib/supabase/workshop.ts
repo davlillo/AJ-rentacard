@@ -29,7 +29,7 @@ const messages:Record<string,string>={
   INVALID_TIME_RANGE:'El tramo debe estar dentro del inicio y fin reales, sin fechas futuras.',
   TIME_OVERLAP:'La corrección se superpone con otro tramo del mismo técnico.',
   DELIVERY_HAS_OPEN_TIMERS:'Finalice todos los cronómetros antes de entregar, incluso con excepción.',
-  DELIVERY_HAS_PENDING_ITEMS:'Hay costos pendientes, tareas abiertas o un alcance sin decisión. Resuelva la lista o solicite excepción a gerencia.',
+  DELIVERY_HAS_PENDING_ITEMS:'Falta resolver costos sin clasificar o el presupuesto sin decisión. Las tareas abiertas no impiden entregar.',
   DELIVERY_EXCEPTION_REQUIRES_MANAGEMENT:'Solo gerencia puede autorizar una entrega por excepción.',
   DELIVERY_EXCEPTION_REASON_REQUIRED:'La excepción requiere un motivo y queda registrada con su responsable.',
   DELIVERY_REQUIRES_CREDIT_AUTHORIZATION:'El importe estimado pendiente requiere una autorización de crédito de gerencia con motivo.',
