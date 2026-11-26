@@ -136,7 +136,9 @@ test('the automatic advance is wired to the successful reload of each folio',()=
   // The manual circles still navigate and reset the notice.
   assert.match(rental,/onSelect=\{index=>pickStage\(index\)\}/);
   const workshop=source(WORKSHOP);
-  assert.match(workshop,/stageAdvance\(\{previous:previousCurrent\.current,current:pipeline\.current,confirmed:true,/);
+  assert.match(workshop,/const observed=previousCurrent\.current;/);
+  assert.match(workshop,/if\(observed===pipeline\.current\)return;/);
+  assert.match(workshop,/stageAdvance\(\{previous:observed,current:pipeline\.current,confirmed:true,/);
   assert.match(workshop,/previousCurrent\.current=pipelineRef\.current\.current;/);
   assert.match(workshop,/role="status">\{advanceNotice\}/);
   assert.match(workshop,/function select\(next:WorkshopSection\)\{manualAt\.current=\+\+sequence\.current;/);

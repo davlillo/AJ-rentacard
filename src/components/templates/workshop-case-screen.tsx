@@ -55,14 +55,19 @@ export function WorkshopCaseScreen({file,job,onChange:onReload,receptionSlot,fil
     actionAt.current=++sequence.current;previousCurrent.current=pipelineRef.current.current;
     await onReload();setActionReload(value=>value+1);
   },[onReload]);
+  // The derived stage is persisted evidence: whenever it changes on its own, the folio
+  // follows it. A child that saves through its own command still lands here, and a manual
+  // circle pick is respected until the next real change.
   useEffect(()=>{
-    if(!actionReload)return;
-    const decision=stageAdvance({previous:previousCurrent.current,current:pipeline.current,confirmed:true,
+    const observed=previousCurrent.current;
+    if(observed===pipeline.current)return;
+    previousCurrent.current=pipeline.current;
+    const decision=stageAdvance({previous:observed,current:pipeline.current,confirmed:true,
       dirty:typingInFolio(folioRef.current),manual:manualAt.current>actionAt.current});
     if(decision.advance&&decision.stage){
       setSection(decision.stage);setAdvanceNotice(`Avanzó a: ${sectionLabel(decision.stage)}`);
     }
-  },[actionReload]);
+  },[pipeline.current]);
   // The price that governs the job is the approved scope; a newer draft never replaces it.
   const approvedScope=pipeline.approved?Number(pipeline.approved.snapshot.total):null;
   const pendingScope=pipeline.approved&&pipeline.latest&&pipeline.latest.id!==pipeline.approved.id?
