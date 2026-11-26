@@ -4,7 +4,7 @@ import {operationMoney} from './operation-money';
 // The folio has five customer stages and three internal ones. The old "work" stage
 // no longer exists: its real costs moved into the money stage that each journey owns
 // (collections for a client job, real costs for the internal fleet job).
-export type WorkshopSection='summary'|'diagnosis'|'budget'|'approval'|'collections'|'delivery'|'documents';
+export type WorkshopSection='summary'|'diagnosis'|'budget'|'approval'|'collections'|'delivery'|'documents'|'tasks';
 export interface WorkshopStage {key:WorkshopSection;label:string;complete:boolean;current:boolean;evidence?:string;}
 
 const sectionKeys:WorkshopSection[]=['summary','diagnosis','budget','approval','collections','delivery','documents'];
@@ -15,7 +15,7 @@ export function workshopSection(value:string|null):WorkshopSection{
   const aliases:Record<string,WorkshopSection>={
     Resumen:'summary','Recepción':'diagnosis','Diagnóstico':'diagnosis','Ingreso y diagnóstico':'diagnosis',
     Presupuestos:'budget','Costos previstos y presupuesto':'budget','Costos y presupuesto':'budget',Aprobación:'approval','Aprobación del cliente':'approval',
-    Costos:'collections',Tareas:'collections',
+    Costos:'collections',Tareas:'tasks',
     'Trabajo y costos reales':'collections','Cargos y abonos':'collections',Cobros:'collections',
     Salida:'delivery',Entrega:'delivery','Fotos y documentos':'documents',
   };

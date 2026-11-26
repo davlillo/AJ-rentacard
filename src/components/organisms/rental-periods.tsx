@@ -16,6 +16,7 @@ import {rentalAddDays as addDays,rentalIssueAttempt,rentalIssueBody,rentalIssueC
   rentalIssueTitle,rentalLocalDate as localDate,rentalIssueEnd,type RentalIssueAttempt,type RentalIssueFacts,
   type RentalIssuePrefill} from '@/controladores/rental-issue-modal';
 import styles from './rental-periods.module.css';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 interface RentalPeriod {id:string;reservation_id:string;starts_on:string;ends_on:string;document_id:string;reason:string;}
 
@@ -61,7 +62,7 @@ export function RentalPeriods({booking,onChange,open=false,amount,summary='Docum
       Se calcula con períodos continuos y documentos saldados. Una nota «cancelado hasta» no cancela el alquiler ni registra dinero.</p>
     {periods.map(period=>{const doc=documents.find(d=>d.id===period.document_id);return <p className="mt-3" key={period.id}>
       {period.starts_on} al {period.ends_on} · {doc?.grouped?'Documento agrupado: consultar el desglose de este alquiler':doc?`${money(doc.amount)} · Saldo ${money(doc.balance)}`:'Documento por consultar'} · {period.reason}</p>;})}
-    {booking.status==='Confirmada'&&can('orders.write')&&can('expenses.write')&&<details className="mt-4" open={open}><summary>{summary}</summary>
+    {booking.status==='Confirmada'&&can('orders.write')&&can('expenses.write')&&<Disclosure className="mt-4" defaultOpen={open} label={summary}>
       <form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
         const input=Object.fromEntries(['startsOn','endsOn','date','dueOn','amount','reason'].map(key=>[key,String(f.get(key)??'')])) as unknown as PeriodInput;
         try{setReview(reviewRentalPeriod(booking,input,periods));setValidation('');}
@@ -86,7 +87,7 @@ export function RentalPeriods({booking,onChange,open=false,amount,summary='Docum
             <Button type="button" variant="outline" onClick={()=>setReview(null)}>Volver a revisar período</Button></div>
         </section>}
         </fieldset>
-      </form></details>}
+      </form></Disclosure>}
     {can('expenses.read')&&<p className="mt-4"><Link href="/cobros">Consultar o aplicar recibos en Cobros</Link></p>}
     {(error||loadError||validation)&&<p role="alert" className="form-error mt-4">{error||loadError||validation}</p>}
   </section>;
@@ -195,8 +196,7 @@ export function RentalIssueForm({facts,prefill,busy,error,onIssue}:{
           <input type="date" name="dueOn" required value={values.dueOn}
             onChange={event=>setValues(current=>({...current,dueOn:event.target.value}))}/></label>
       </div>
-      <details className={styles.dates}>
-        <summary>{rentalIssueDatesDisclosure}</summary>
+      <Disclosure className={styles.dates} label={rentalIssueDatesDisclosure}>
         <div className="form-grid mt-3">
           <label className="form-field"><span>Período desde (inclusive)</span>
             <input type="date" name="startsOn" required value={values.startsOn}
@@ -207,7 +207,7 @@ export function RentalIssueForm({facts,prefill,busy,error,onIssue}:{
         </div>
         <p className="field-hint">Las fechas deben quedar dentro del período acordado del alquiler y
           no se superponen con días ya documentados.</p>
-      </details>
+      </Disclosure>
       <label className="form-field"><span>Acuerdo del período</span>
         <textarea name="reason" required value={values.reason}
           onChange={event=>setValues(current=>({...current,reason:event.target.value}))}/></label>

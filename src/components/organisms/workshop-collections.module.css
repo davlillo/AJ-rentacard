@@ -47,8 +47,9 @@
 .editor :global(.operation-form) { border:0; padding:0; margin-top:16px; }
 .editor :global(input),.editor :global(select) { min-width:0; width:100%; min-height:44px; }
 .editor :global(fieldset) { min-width:0; }
-.history { border-top:1px solid var(--border); padding-top:20px; }
-.history summary { font-weight:700; cursor:pointer; min-height:44px; }
+/* The history is a disclosure of its own: the card chrome comes from the shared
+   component, so only the spacing belongs here. */
+.history { margin-top: 4px; }
 .historyGrid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
 .historyGrid section { min-width:0; }
 .record { padding:16px 0; border-bottom:1px solid var(--border); font-size:.875rem; overflow-wrap:anywhere; }

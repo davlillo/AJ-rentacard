@@ -15,12 +15,13 @@ export function WorkshopDeliveryReview({orderId,onChange,quoteLabels}:{orderId:s
   async function reload(){const [checklist,delivery]=await Promise.all([deliveryChecklist(orderId),loadDelivery(orderId)]);setChecklist(checklist);setDelivery(delivery);}
   useEffect(()=>{void reload().catch(error=>setError(error.message));},[orderId]);
   return <section>
-    <p className="inline-note">El servidor vuelve a revisar costos, tareas, cronómetros y el trabajo acordado al confirmar. La entrega no borra deuda
-      ni convierte un vehículo de flota en disponible. Inspección, fotos y documentos se consultan en las secciones del pliego.</p>
+    <p className="inline-note">El servidor vuelve a revisar costos, cronómetros y el trabajo acordado al confirmar. Las tareas abiertas no
+      impiden entregar. La entrega no borra deuda ni convierte un vehículo de flota en disponible. Inspección, fotos y documentos se
+      consultan en las secciones del pliego.</p>
     <Button variant="outline" className="mt-4" disabled={busy} onClick={()=>{void reload().catch(error=>setError(error.message));}}>Actualizar revisión</Button>
-    {checklist&&<><ul className="mt-4 space-y-2" aria-label="Pendientes de entrega">
-      <li>Costos sin pagar: <strong>{checklist.pendingCosts}</strong></li>
-      <li>Tareas sin finalizar: <strong>{checklist.openTasks.length}</strong></li>
+    {checklist&&<><h3 className="mt-4 font-semibold">Revisión que impide entregar</h3>
+    <ul className="mt-2 space-y-2" aria-label="Pendientes de entrega">
+      <li>Costos sin clasificar: <strong>{checklist.pendingCosts}</strong></li>
       <li>Cronómetros abiertos: <strong>{checklist.openTimers.length}</strong></li>
       <li>Versión del presupuesto sin decidir: {checklist.pendingEstimate
         ?<Link href={orderHref(orderId)+'&seccion='+encodeURIComponent('Aprobación del cliente')}>
@@ -28,12 +29,19 @@ export function WorkshopDeliveryReview({orderId,onChange,quoteLabels}:{orderId:s
       <li>Saldo documental: {money(checklist.estimatedUnpaid)}. Los importes pendientes de emitir siguen señalados por separado.</li>
       <li>Datos de recepción pendientes: {checklist.pendingFields.join(', ')||'Ninguno'}</li>
     </ul>
-    {/* Every blocker is named and linked to the stage that resolves it, so the
-      operator never has to guess where the pending work lives. */}
+    {/* Every money blocker is named and linked to the stage that resolves it, so the
+      operator never has to guess where the pending money lives. */}
     {checklist.costs.filter(cost=>cost.disposition==='Pendiente').map(cost=><p key={cost.id} className="form-error">
       {deliveryPendingCost(cost)} — clasificar en <Link href={orderHref(orderId)+'&seccion='+encodeURIComponent('Costos')}>Costos del trabajo</Link></p>)}
-    {checklist.openTasks.map(task=><p key={task.id} className="form-error">
-      Tarea sin finalizar: {task.description} — <Link href={orderHref(orderId)+'&seccion='+encodeURIComponent('Tareas')}>revisar en Tareas</Link></p>)}
+    {/* Open tasks stay visible as optional follow-up: they are never a delivery gate. */}
+    <section className="inline-note mt-4" aria-label="Tareas abiertas de este trabajo">
+      <h3 className="font-semibold">Tareas abiertas</h3>
+      <p>Las tareas abiertas no impiden entregar. Puede cerrarlas después.</p>
+      {checklist.openTasks.length>0?<ul className="mt-2 space-y-1">
+        {checklist.openTasks.map(task=><li key={task.id}>{task.description} — <Link
+          href={orderHref(orderId)+'&seccion='+encodeURIComponent('Tareas')}>revisar en Tareas</Link></li>)}
+      </ul>:<p>Sin tareas abiertas en este trabajo.</p>}
+    </section>
     {delivery?<section className="inline-note mt-4"><h3 className="font-semibold">Acta de entrega</h3>
       <p>{delivery.exception?'Entrega por excepción':'Entrega ordinaria'} · {delivery.recipient}</p>
       <p>{delivery.evidence}</p><p>{delivery.reason}</p><small>Registrada el {deliveryActaMoment(delivery.created_at)}</small>

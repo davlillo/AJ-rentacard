@@ -14,6 +14,7 @@ import {supplierCredit} from '@/controladores/workshop-cost-entry';
 import {workshopAmountText,workshopCollectionState,workshopMoneyLabels,workshopReceivableOverview} from '@/controladores/workshop-money-language';
 import {ReceiptForm} from './linked-receipt';
 import {WorkshopCosts} from './workshop-costs';
+import {Disclosure} from './disclosure';
 import styles from './workshop-collections.module.css';
 
 type Props={file:CaseFile;job?:CaseOrder;onChange:()=>Promise<void>};
@@ -120,8 +121,7 @@ function CollectionsWorkspace({file,job,onChange}:Props){
         </dl>
         <WorkshopCosts orderId={job!.id} file={file} onChange={onChange} actionVariant="outline"/>
       </section>
-      <details className={styles.history} open>
-        <summary>Documentos y movimientos</summary>
+      <Disclosure className={styles.history} label="Documentos y movimientos" defaultOpen>
         <div className={styles.historyGrid}>
           <section><h4>Documentos de este trabajo</h4>
             {!documents.length&&<p>No hay importes facturados al cliente.</p>}
@@ -147,7 +147,7 @@ function CollectionsWorkspace({file,job,onChange}:Props){
             </article>)}
           </section>
         </div>
-      </details>
+      </Disclosure>
     </>}
   </section>;
 }

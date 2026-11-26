@@ -11,6 +11,7 @@ import {localToday} from '@/lib/supabase/billing';
 import {VehicleReviewNotes} from './vehicle-review';
 import {confirmInspection,inspectionBaseline,readingLabel,startInspection,type InspectionDraft,type InspectionConfirmation} from '@/controladores/rental-inspection-flow';
 import styles from './rental-inspection.module.css';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 export function RentalInspectionReview({booking,onChange}:{booking:Reservation;onChange:()=>Promise<void>}){
   return <InspectionReview key={booking.id} booking={booking} onChange={onChange}/>;
@@ -130,7 +131,7 @@ function InspectionReview({booking,onChange}:{booking:Reservation;onChange:()=>P
       <Button type="button" variant="outline" onClick={()=>{setDraft(null);setConfirmation(null);setError('');attempt.current=null;}}>
         Descartar borrador</Button>
     </fieldset></form>}
-    {extras.length>0&&<details className="mt-4"><summary>Diferencias detectadas en la inspección · {extras.map(extra=>rentalExtraState(extra)).join(' · ')}</summary>
+    {extras.length>0&&<Disclosure label={`Diferencias detectadas en la inspección · ${extras.map(extra=>rentalExtraState(extra)).join(' · ')}`}>
       <p className="field-hint mt-3">Estos extras solo existen cuando la inspección detectó una diferencia (un daño, un accesorio o combustible).
         Si no va a cobrarlo, elija Rechazado y explique por qué.</p>
       {extras.map(extra=><article key={extra.id} className="inline-note mt-3"><strong>{extra.description} · {rentalExtraState(extra)}</strong>
@@ -155,7 +156,7 @@ function InspectionReview({booking,onChange}:{booking:Reservation;onChange:()=>P
           <Button type="submit" variant="outline" disabled={busy}>Emitir el importe del extra</Button>
         </form>}
       </article>)}
-    </details>}
+    </Disclosure>}
     {error&&<p className="form-error" role="alert">{error}</p>}
   </section>;
 }

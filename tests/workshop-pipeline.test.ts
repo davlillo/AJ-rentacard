@@ -159,7 +159,7 @@ test('All historical section URLs remain navigation aliases',()=>{
   for(const [legacy,current] of Object.entries({'Recepción':'diagnosis','Diagnóstico':'diagnosis',
     'Ingreso y diagnóstico':'diagnosis','Presupuestos':'budget','Costos y presupuesto':'budget',
     'Aprobación':'approval','Costos':'collections','Trabajo y costos reales':'collections',
-    'Tareas':'collections','Cargos y abonos':'collections','Cobros':'collections',
+    'Tareas':'tasks','Cargos y abonos':'collections','Cobros':'collections',
     'Salida':'delivery','Entrega':'delivery','Fotos y documentos':'documents'})){
     assert.equal(workshopSection(legacy),current);
   }

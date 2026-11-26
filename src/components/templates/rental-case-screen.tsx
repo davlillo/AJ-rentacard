@@ -21,7 +21,9 @@ import {RentalStageProgress} from '@/components/organisms/rental-stage-progress'
 import {RentalAccounts,RentalBillingDetail} from '@/components/organisms/rental-accounts';
 import {rentalDateTime,rentalSection,rentalSectionStage,rentalWorkflow,type RentalSection} from '@/controladores/rental-workflow';
 import {rentalExtensionPreview,type RentalExtensionPreview} from '@/controladores/rental-extension-preview';
-import {rentalElapsed,rentalLifecycle,rentalMoneyEvidence} from '@/controladores/rental-lifecycle';
+import {rentalElapsed,rentalLifecycle,rentalMoneyEvidence,rentalStages} from '@/controladores/rental-lifecycle';
+import {stageAdvance,typingInFolio} from '@/controladores/stage-advance';
+import {Disclosure} from '@/components/organisms/disclosure';
 import {rentalDocument,type RentalDocumentFacts} from '@/lib/documents/rental-document';
 import {RentalDocumentExport} from '@/components/organisms/rental-document-export';
 import styles from './rental-case-screen.module.css';
@@ -34,6 +36,14 @@ function localDate(value?:string|null):string|null{
   if(!Number.isFinite(date.getTime()))return null;
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/El_Salvador'}).format(date);
 }
+// The derived stage of the folio, readable outside the render scope so the advance
+// effect compares the same value the screen shows before and after a reload.
+function rentalCurrentStage(file:CaseFile,financialAccess:boolean):number|null{
+  const booking=file.reservations[0];if(!booking)return null;
+  const visible=financialAccess?file:{...file,financialAccess:false,documents:[],applications:[],payments:[],advances:[],expenses:[]};
+  const flow=rentalWorkflow(booking,file.commitments);
+  return rentalLifecycle(booking,flow,rentalMoneyEvidence(visible,booking,null)).currentIndex;
+}
 function RentalContent({id}:{id:string}){
   const {data,can,refresh,open,modal}=useBusiness();const [file,setFile]=useState<CaseFile|null>(null);
   const requestedSection=useSearchParams().get('seccion');
@@ -42,31 +52,54 @@ function RentalContent({id}:{id:string}){
   const [stage,setStage]=useState<number|null>(()=>requestedSection?rentalSectionStage(rentalSection(requestedSection)):null);
   const [finishReview,setFinishReview]=useState(false);
   const [openExtension,setOpenExtension]=useState(false);
+  // After a successful action the folio moves to the stage that now applies and says so.
+  const [actionReload,setActionReload]=useState(0);const [advanceNotice,setAdvanceNotice]=useState('');
+  const sequence=useRef(0);const manualAt=useRef(0);const actionAt=useRef(0);
+  const previousCurrent=useRef<number|null>(null);const currentStageRef=useRef<number|null>(null);
+  const folioRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{setStage(requestedSection?rentalSectionStage(rentalSection(requestedSection)):null);},[requestedSection]);
   const readRevision=useRef(0);
   const readCase=useCallback(async()=>{const revision=++readRevision.current;
     try{const result=await loadRentalCase(id);if(revision===readRevision.current){setFile(result);setLoadError('');}}
     catch(error){if(revision===readRevision.current)throw error;}
   },[id]);
-  const reload=useCallback(async()=>{await readCase();await refresh();},[readCase,refresh]);
+  const readAndRefresh=useCallback(async()=>{await readCase();await refresh();},[readCase,refresh]);
+  // Every caller of `reload` runs it after its own command succeeded: that reload is the
+  // only trigger of the automatic advance.
+  const reload=useCallback(async()=>{actionAt.current=++sequence.current;
+    previousCurrent.current=currentStageRef.current;await readAndRefresh();setActionReload(value=>value+1);},[readAndRefresh]);
   const {busy,error,execute}=useCaseAction(reload);
   function mutate(command:ReservationCommand,payload:Record<string,unknown>){return execute(`reservation.${command}`,payload,key=>reservationCommand(command,payload,key));}
   // A legacy section or an action of the operation resolves to the stage that owns it now.
   const goToSection=(section:RentalSection)=>setStage(rentalSectionStage(section));
+  const financialAccess=!!file&&file.financialAccess&&can('expenses.read');
+  const currentStage=file?rentalCurrentStage(file,financialAccess):null;
+  currentStageRef.current=currentStage;
+  useEffect(()=>{
+    if(!actionReload||!file)return;
+    const decision=stageAdvance({previous:previousCurrent.current,current:currentStage,confirmed:true,
+      dirty:typingInFolio(folioRef.current),manual:manualAt.current>actionAt.current});
+    if(decision.advance&&decision.stage!==null){
+      setStage(decision.stage);setFinishReview(false);
+      setAdvanceNotice(`Avanzó a: ${rentalStages[decision.stage]}`);
+    }
+  },[actionReload]);
+  function pickStage(index:number|null){
+    manualAt.current=++sequence.current;setAdvanceNotice('');
+    setStage(index);setFinishReview(false);
+  }
   useEffect(()=>{let active=true;if(id)void readCase().catch(error=>{if(active)setLoadError(error.message);});
     return()=>{active=false;readRevision.current++;};},[id,readCase,modal.kind,data]);
   if(!id)return <p role="alert" className="form-error">Falta el identificador del alquiler.</p>;
   if(!file)return <p role={loadError?'alert':'status'}>{loadError||'Cargando pliego del alquiler…'}</p>;
   const booking=file.reservations[0];const car=file.vehicle;
-  const financialAccess=file.financialAccess&&can('expenses.read');
   const visibleFile=financialAccess?file:{...file,financialAccess:false,documents:[],applications:[],payments:[],advances:[],expenses:[]};
   const flow=rentalWorkflow(booking,file.commitments);
   // Money evidence comes from the persisted scope and only with the current permission.
   const evidence=rentalMoneyEvidence(visibleFile,booking,null);
   const lifecycle=rentalLifecycle(booking,flow,evidence);
   const accounts=lifecycle.accounts;
-  const currentStage=lifecycle.currentIndex??0;
-  const shown=stage??currentStage;
+  const shown=stage??currentStage??0;
   // The closing stage states the status once: operational closure, the pending amount and,
   // while the vehicle is retained, that the release is confirmed from the vehicle dossier.
   const pendingNote=financialAccess&&accounts?(accounts.pending>0?`Pendiente por cobrar: ${money(accounts.pending)}.`:'Sin saldo pendiente por cobrar.'):'Requiere acceso a los importes para ver el saldo.';
@@ -83,13 +116,13 @@ function RentalContent({id}:{id:string}){
   const operation=<RentalOperation file={visibleFile} onChange={reload} onSection={goToSection} busy={busy}
     onFinish={()=>setFinishReview(true)}
     onConfirm={()=>{void mutate('confirm',{reservationId:id,expectedVersion:booking.version});}}/>;
-  return <div className={styles.folio}><nav aria-label="Ubicación del alquiler" className="mb-5"><Link href="/alquileres/">Alquileres</Link> / {folio('ALQ',booking.folio_number)} · <Link href={vehicleHref(car.id)}>{car.plate}</Link></nav>
+  return <div className={styles.folio} ref={folioRef}><nav aria-label="Ubicación del alquiler" className="mb-5"><Link href="/alquileres/">Alquileres</Link> / {folio('ALQ',booking.folio_number)} · <Link href={vehicleHref(car.id)}>{car.plate}</Link></nav>
     <PageHeading eyebrow="FOLIO DEL ALQUILER" title={`${folio('ALQ',booking.folio_number)} · ${car.plate}`}
       description={`${booking.customer_snapshot.name} · ${rentalWorkflow(booking,file.commitments).label}`}
-      actions={<Button variant="outline" disabled={busy} onClick={()=>{void reload().catch(error=>setLoadError(error.message));}}>Actualizar alquiler</Button>}/>
+      actions={<Button variant="outline" disabled={busy} onClick={()=>{void readAndRefresh().catch(error=>setLoadError(error.message));}}>Actualizar alquiler</Button>}/>
     <RentalStageProgress booking={booking} commitments={file.commitments} evidence={evidence}
-      shown={shown} onReturnToCurrent={()=>{setStage(null);setFinishReview(false);}}
-      onSelect={index=>{setStage(index);setFinishReview(false);}}/>
+      shown={shown} onReturnToCurrent={()=>pickStage(null)} onSelect={index=>pickStage(index)}/>
+    {advanceNotice&&<p className={styles.advanceNotice} role="status">{advanceNotice}</p>}
     {shown===0&&<>
       <section className={styles.agreement} aria-label="Acuerdo del alquiler">
         <header className={styles.agreementHeader}>
@@ -118,11 +151,14 @@ function RentalContent({id}:{id:string}){
         <p className="inline-note mt-4">Pagar un período no libera el carro ni cancela la reserva. El alquiler sin fin acordado mantiene ocupación abierta.</p>
         <RentalAgreements key={'agreements:'+booking.id} booking={booking} onChange={reload}
           primary={booking.status!=='Borrador'}/>
-        {booking.status!=='Cancelada'&&booking.rental_state==='Preparado'&&can('orders.write')&&<details className="mt-5"><summary>Cancelar reserva no entregada</summary>
-          <form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
-            void mutate('cancel',{reservationId:id,expectedVersion:booking.version,reason:String(f.get('reason'))});
-          }}><label className="form-field"><span>Motivo de cancelación operativa</span><input name="reason" required/></label>
-            <Button type="submit" variant="outline" disabled={busy}>Cancelar sin borrar deuda ni recibos</Button></form></details>}
+        {booking.status!=='Cancelada'&&booking.rental_state==='Preparado'&&can('orders.write')&&
+          <section className={styles.openBlock} aria-label="Cancelar reserva no entregada">
+            <h3 className={styles.openBlockTitle}>Cancelar reserva no entregada</h3>
+            <form className="operation-form" onSubmit={event=>{event.preventDefault();const f=new FormData(event.currentTarget);
+              void mutate('cancel',{reservationId:id,expectedVersion:booking.version,reason:String(f.get('reason'))});
+            }}><label className="form-field"><span>Motivo de cancelación operativa</span><input name="reason" required/></label>
+              <Button type="submit" variant="outline" disabled={busy}>Cancelar sin borrar deuda ni recibos</Button></form>
+          </section>}
       </section>
       {(booking.status!=='Confirmada'||booking.rental_state==='Preparado')&&operation}
     </>}
@@ -162,17 +198,16 @@ function RentalContent({id}:{id:string}){
           <div><dt>Pendiente por cobrar</dt><dd>{accounts?money(accounts.pending):'Requiere acceso a los importes'}</dd></div>
         </dl>
       </section>
-      {financialAccess&&<details className={styles.optionalBlock}>
-        <summary>Gastos de este alquiler<span className={styles.optionalHint}>Opcional · registre un gasto solo si pagó algo de este alquiler</span></summary>
+      {financialAccess&&<Disclosure className={styles.optionalBlock} label="Gastos de este alquiler"
+        hint="Opcional · registre un gasto solo si pagó algo de este alquiler">
         {(file.expenses??[]).map(e=><p className="inline-note mt-4" key={e.id}>{e.date} · {e.id} · {e.concept} · {money(e.scope_amount??e.amount)}</p>)}
         {!file.expenses?.length&&<p className="mt-4">No hay gastos asignados a este alquiler.</p>}
         {can('expenses.write')&&<Button className="mt-4" variant="outline" onClick={()=>open('gasto',`reservation:${id}`)}>Registrar gasto en este alquiler</Button>}
-      </details>}
+      </Disclosure>}
       <div className={styles.closingFiles}>
-        <details className={styles.optionalBlock}>
-          <summary>Fotos y documentos<span className={styles.optionalHint}>Opcional · guarde fotos o soportes</span></summary>
+        <Disclosure className={styles.optionalBlock} label="Fotos y documentos" hint="Opcional · guarde fotos o soportes">
           <CaseFiles file={file} reservationId={id} onChange={reload}/>
-        </details>
+        </Disclosure>
       </div>
       <RentalContracts booking={booking} summary="Contrato del alquiler" hint="Opcional · condiciones y aceptación del contrato"/>
     </>}
@@ -212,8 +247,8 @@ function RentalExtension({booking,onChange,onCharges,open=false,onOpenChange}:{
   const [saved,setSaved]=useState(false);
   const allowed=booking.status==='Confirmada'&&['Preparado','Entregado'].includes(booking.rental_state);
   if(!can('orders.write')||(!allowed&&!preview))return null;
-  return <details className="mt-5" open={open} onToggle={event=>onOpenChange?.(event.currentTarget.open)}>
-    <summary>Extender o acordar la fecha de devolución</summary>
+  return <Disclosure className={styles.extensionDisclosure} label="Extender o acordar la fecha de devolución"
+    open={open} onOpenChange={onOpenChange}>
     <form className="operation-form" onSubmit={event=>{
       event.preventDefault();
       if(preview)return;
@@ -255,7 +290,7 @@ function RentalExtension({booking,onChange,onCharges,open=false,onOpenChange}:{
         Documentar un período no registra cobros ni reemplaza los importes emitidos antes.</p>
       <RentalPeriods key={booking.id} booking={booking} onChange={onChange}/>
     </section>}
-  </details>;
+  </Disclosure>;
 }
 
 function RentalAgreements({booking,onChange,primary=false}:{booking:Reservation;onChange:()=>Promise<void>;primary?:boolean}){
@@ -263,7 +298,8 @@ function RentalAgreements({booking,onChange,primary=false}:{booking:Reservation;
   const reload=useCallback(async()=>{setNotes((await readRows<ReservationEvidence>('reservation_evidence','*')).filter(note=>note.reservation_id===booking.id));},[booking.id]);
   const {busy,error,execute}=useCaseAction(async()=>{await reload();await onChange();});
   useEffect(()=>{void reload().catch(error=>setLoadError(error.message));},[reload]);
-  return <details className="mt-5" open><summary>Acuerdos y observaciones del folio</summary>
+  return <section className={styles.openBlock} aria-label="Acuerdos y observaciones del folio">
+    <h3 className={styles.openBlockTitle}>Acuerdos y observaciones del folio</h3>
     {notes.map(note=><article className="inline-note mt-4" key={note.id}><p>{note.body}</p><small>{rentalDateTime(note.created_at)}</small></article>)}
     {can('orders.write')&&<form className="operation-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;const body=String(new FormData(form).get('body'));
       const payload={reservationId:booking.id,body};
@@ -271,5 +307,5 @@ function RentalAgreements({booking,onChange,primary=false}:{booking:Reservation;
     }}><label className="form-field"><span>Acuerdo u observaciones de la reserva</span><textarea name="body" required maxLength={20000}/></label>
       <Button type="submit" variant={primary?undefined:'outline'} disabled={busy}>Guardar acuerdo u observaciones</Button></form>}
     {(error||loadError)&&<p className="form-error" role="alert">{error||loadError}</p>}
-  </details>;
+  </section>;
 }

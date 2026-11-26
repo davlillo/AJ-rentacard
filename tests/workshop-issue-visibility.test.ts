@@ -58,7 +58,7 @@ test('A pending cost asks its classification question on the card surface',()=>{
   // progressive disclosure for a decided one.
   assert.match(costs,/expanded=\{cost\.disposition==='Pendiente'\}/);
   assert.match(costs,/if\(expanded\)return <div/);
-  assert.match(costs,/<details><summary>Revisar relación con el presupuesto<\/summary>/);
+  assert.match(costs,/<Disclosure label="Revisar relación con el presupuesto">/);
   // The compact state line of a decided cost stays.
   assert.match(costs,/styles\.status/);
 });

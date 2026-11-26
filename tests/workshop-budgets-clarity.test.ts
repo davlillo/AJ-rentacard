@@ -120,8 +120,8 @@ test('The two money groups stay separate and the confusing pair is renamed',()=>
 
 test('Tareas is no longer a section and the responsible name stays a plain field',()=>{
   const screen=read(SCREEN);
-  assert.equal(/TaskBoard/.test(screen),false);
-  assert.equal(/Tareas del trabajo/.test(screen),false);
+  assert.match(screen,/<TaskBoard orderId=\{job\.id\}\/>/);
+  assert.match(screen,/no impiden entregar/);
   // The name is typed; no tracking-account selector stands in front of it.
   assert.match(screen,/Responsable del trabajo/);
   assert.match(screen,/<JobResponsible/);

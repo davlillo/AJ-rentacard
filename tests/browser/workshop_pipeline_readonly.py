@@ -9,7 +9,7 @@ from urllib.parse import urlparse, quote
 from playwright.sync_api import expect, sync_playwright
 
 APP = os.environ.get('AJ_APP', 'http://127.0.0.1:3030')
-ROOT = Path('test-results/workshop-pipeline')
+ROOT = Path(os.environ.get('AJ_RESULTS', 'test-results/workshop-pipeline'))
 USER = '00000000-0000-4000-8000-000000009901'
 CUSTOMER = {'id': 'synthetic-customer', 'name': 'Synthetic workshop customer', 'phone': '',
             'email': '', 'document': '', 'type': 'Personal', 'version': 1}
@@ -43,7 +43,7 @@ FILES = [{'id': 'private', 'vehicle_id': VEHICLE['id'], 'order_id': JOB['id'], '
           'name': 'Synthetic inspection.pdf', 'mime': 'application/pdf', 'purpose': 'Ingreso',
           'financial': False, 'size': 10, 'created_at': '2026-11-10T12:00:00Z'}]
 STATE = {'denied': set(), 'finance': True, 'quotes': [], 'internal': False, 'status': 'Diagnóstico',
-         'active': None, 'open_timer': True, 'settled': False, 'unbilled': False}
+         'active': None, 'open_timer': True, 'settled': False, 'unbilled': False, 'pending_cost': True}
 BLOCKED, ERRORS, COMMANDS, BILLING = [], [], [], []
 
 
@@ -109,7 +109,8 @@ def protect(route):
             return
         if resource == 'workshop_delivery_checklist':
             route.fulfill(json={'orderId': JOB['id'], 'version': 7, 'status': STATE['status'],
-                               'pendingFields': [], 'costs': [COST], 'pendingCosts': 1,
+                               'pendingFields': [], 'costs': [COST] if STATE['pending_cost'] else [],
+                               'pendingCosts': 1 if STATE['pending_cost'] else 0,
                                'openTasks': [{'id': 'pending', 'description': 'Synthetic pending task'}],
                                'openTimers': [{'id': 'timer'}] if STATE['open_timer'] else [],
                                'pendingEstimate': None, 'approvedEstimateId': STATE['active'],
@@ -220,6 +221,11 @@ def main():
                 assert brand != 'rgba(0, 0, 0, 0)', brand
                 costs_button = page.get_by_role('button', name='Registrar costo', exact=True)
                 assert costs_button.evaluate('(b)=>getComputedStyle(b).backgroundColor') != brand
+                # The history of the collections is a finished disclosure, not a raw arrow.
+                history = page.locator('main button[aria-expanded]').filter(has_text='Documentos y movimientos')
+                expect(history).to_have_count(1)
+                expect(history).to_have_attribute('aria-expanded', 'true')
+                expect(page.get_by_role('heading', name='Documentos de este trabajo', exact=True)).to_be_visible()
                 screenshot(page, 'actual-costs', width)
                 go(page, 'Salida')
                 expect(page.get_by_role('button', name='Confirmar entrega revisada')).to_be_disabled()
@@ -228,9 +234,27 @@ def main():
                 expect(page.get_by_test_id('workshop-case')).to_contain_text('Synthetic acquired part')
                 expect(page.get_by_test_id('workshop-case')).to_contain_text('clasificar en')
                 expect(page.get_by_role('link', name='Costos del trabajo')).to_be_visible()
-                expect(page.get_by_test_id('workshop-case')).to_contain_text('Tarea sin finalizar: Synthetic pending task')
-                expect(page.get_by_role('link', name=re.compile('revisar en Tareas'))).to_be_visible()
+                tasks = page.get_by_role('region', name='Tareas abiertas de este trabajo')
+                expect(tasks).to_contain_text('Synthetic pending task')
+                expect(tasks).to_contain_text('Las tareas abiertas no impiden entregar. Puede cerrarlas después.')
+                expect(tasks.get_by_role('link', name=re.compile('revisar en Tareas'))).to_be_visible()
+                assert tasks.evaluate("(s) => s.className.includes('form-error')") is False
+                assert tasks.evaluate("(s) => s.className.includes('inline-note')") is True
                 screenshot(page, 'delivery-review', width)
+                # An open task is optional follow-up: with the money settled and no open
+                # timer the delivery stays available and the task block stays informational.
+                STATE['open_timer'] = False
+                STATE['pending_cost'] = False
+                go(page, 'Salida')
+                expect(page.get_by_role('button', name='Confirmar entrega revisada')).to_be_enabled()
+                tasks = page.get_by_role('region', name='Tareas abiertas de este trabajo')
+                expect(tasks).to_contain_text('Las tareas abiertas no impiden entregar. Puede cerrarlas después.')
+                expect(tasks).to_contain_text('Synthetic pending task')
+                assert tasks.evaluate("(s) => s.className.includes('form-error')") is False
+                expect(page.get_by_test_id('workshop-case')).not_to_contain_text('Costos sin clasificar: 1')
+                screenshot(page, 'delivery-tasks-optional', width)
+                STATE['open_timer'] = True
+                STATE['pending_cost'] = True
             page.set_viewport_size({'width': 1440, 'height': 1000})
             # The budget is editable in the folio: the editor mounts inline, with the
             # same fields and the same save, and closing it never navigates away.
@@ -263,8 +287,15 @@ def main():
             page.get_by_label('Acuerdo con el cliente (escrito o mensaje)').fill('Synthetic approval evidence')
             page.get_by_role('button', name='Guardar decisión', exact=True).click()
             expect(page.get_by_role('region', name='Fases del trabajo')).to_contain_text('Trabajo acordado y vigente')
+            # A successful action moves the folio by itself to the stage that now applies.
+            expect(page.locator('main p[role="status"]').filter(has_text='Avanzó a:')).to_have_text('Avanzó a: Cobros')
+            expect(page.get_by_role('heading', name='Cobros de este trabajo', exact=True)).to_be_visible()
             assert len(COMMANDS) == 1
             screenshot(page, 'approved-work-guidance', 1440)
+            # The circles still navigate by hand, and a manual pick clears the polite notice.
+            tab(page, 'Aprobación').click()
+            expect(page.get_by_role('heading', name='Aprobación del cliente', exact=True)).to_be_visible()
+            expect(page.locator('main p[role="status"]').filter(has_text='Avanzó a:')).to_have_count(0)
             # After the approval decision the stage itself offers the issuance: the
             # operator sees the next money action without navigating to Cobros.
             STATE['unbilled'] = True
@@ -309,6 +340,13 @@ def main():
                 screenshot(page, 'collections-settled-not-delivered', width)
             STATE['settled'] = False
             page.set_viewport_size({'width': 1440, 'height': 1000})
+            # The task board reads as optional follow-up, not a gate on the delivery.
+            page.goto(APP + '/taller', wait_until='networkidle')
+            page.get_by_role('navigation', name='Áreas del taller').get_by_role('button', name='Tareas').click()
+            expect(page.get_by_text(
+                'Seguimiento opcional: las tareas abiertas no impiden entregar el vehículo. Puede cerrarlas después.'
+            )).to_be_visible()
+            screenshot(page, 'task-board-optional', 1440)
             for status in ['Borrador', 'Rechazado']:
                 STATE['quotes'] = [copy.deepcopy(STATE['quotes'][0]), {**copy.deepcopy(QUOTE), 'id': 'revision-2', 'revision': 2, 'status': status}]
                 go(page, 'Tareas')
@@ -388,8 +426,8 @@ def main():
             page.goto(APP + '/vehiculos/expediente/?id=' + VEHICLE['id'], wait_until='networkidle')
             expect(page.get_by_test_id('vehicle-dossier')).to_be_visible()
             expect(page.get_by_test_id('workshop-case')).to_have_count(0)
-            assert not BLOCKED, BLOCKED
             assert not ERRORS, ERRORS
+            assert not BLOCKED, BLOCKED
         except Exception:
             page.screenshot(path=str(ROOT / 'failure.png'), full_page=True)
             (ROOT / 'failure.html').write_text(page.content(), encoding='utf8')
@@ -399,7 +437,7 @@ def main():
     result = {'passed': True, 'widths': [1440, 1024, 390, 320], 'realApiRequests': 0,
               'realBusinessWrites': 0, 'syntheticApprovalCommands': len(COMMANDS),
               'syntheticIssuanceCommands': len(BILLING), 'issuanceOfferedAfterApproval': True,
-              'deliveryBlockersNamed': True,
+              'deliveryBlockersNamed': True, 'deliveryTasksOptional': True,
               'permissionRevocation': True, 'serverFinancialFlag': True,
               'customerFiveInternalThreeStages': True, 'collectionsKeyboardNavigation': True,
               'settlementDoesNotCompleteWorkOrDelivery': True, 'deliveredDebtStillOutstanding': True,

@@ -4,6 +4,7 @@ import {Button} from '@/components/ui/button';
 import {useCaseAction} from '@/hooks/use-case-action';
 import {createSupabaseBrowserClient} from '@/lib/supabase/client';
 import type {Customer,Vehicle} from '@/types';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 export function RegistryDetails({customer,vehicle,onChange,expanded=false}:{customer?:Customer;vehicle?:Vehicle;onChange:()=>Promise<void>;expanded?:boolean}){
   const {busy,error,execute}=useCaseAction(onChange);const record=customer??vehicle;
@@ -11,7 +12,7 @@ export function RegistryDetails({customer,vehicle,onChange,expanded=false}:{cust
   if(!record)return null;
   const fields=customer?[['name','Nombre o razón social'],['phone','Teléfono'],['email','Correo electrónico'],['document','Documento']]:
     [['plate','Placa'],['color','Color'],['km','Kilometraje confirmado'],['daily','Tarifa diaria (USD)']];
-  return <details open={expanded} className="mt-5"><summary className="text-link">{customer?'Editar datos del cliente':'Completar o corregir datos'}</summary><form key={record.id} className="operation-form mt-4" onSubmit={event=>{
+  return <div className="mt-5"><Disclosure label={customer?'Editar datos del cliente':'Completar o corregir datos'} defaultOpen={expanded}><form key={record.id} className="operation-form mt-4" onSubmit={event=>{
     event.preventDefault();const form=new FormData(event.currentTarget);if(!form.get('status'))form.delete('status');const payload={id:record.id,expectedVersion:editVersion.current,
       ...Object.fromEntries(form.entries())};const kind=customer?'customer':'vehicle';
     void execute('registry.'+kind,payload,async key=>{
@@ -32,5 +33,5 @@ export function RegistryDetails({customer,vehicle,onChange,expanded=false}:{cust
     <label className="form-field"><span>Motivo o evidencia de la corrección *</span><textarea name="reason" required placeholder="Ej. verificación de documentos o inspección del vehículo"/></label>
     <Button type="submit" disabled={busy}>{busy?'Guardando…':customer?'Guardar cambios del cliente':'Guardar datos verificados'}</Button></fieldset>
     {error&&<p className="form-error" role="alert">{error}</p>}
-  </form></details>;
+  </form></Disclosure></div>;
 }

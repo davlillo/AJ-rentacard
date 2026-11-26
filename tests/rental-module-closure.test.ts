@@ -47,7 +47,7 @@ test('the identity document opens in an accessible modal and never below the lis
   assert.ok(documents.indexOf('<Dialog')>=0);
   assert.ok(documents.indexOf('<Dialog')<documents.indexOf('<img'));
   assert.ok(!documents.includes('Ocultar foto'));
-  assert.ok(documents.includes('<details'),'the photo history stays available');
+  assert.ok(documents.includes('<Disclosure'),'the photo history stays available');
   // The authorization path does not change: the same private file is read through the same RPC.
   assert.ok(documents.includes('readCustomerDocument('));
   assert.ok(documents.includes('customer.document.view'));
@@ -152,7 +152,7 @@ test('the return step is one primary action and the extras are behind a disclosu
   assert.ok(inspection.includes('Confirmar devolución'));
   // The extras are exceptional: they only appear inside a collapsed disclosure.
   assert.ok(inspection.includes('Diferencias detectadas en la inspección'));
-  assert.ok(inspection.includes('<details'));
+  assert.ok(inspection.includes('<Disclosure')||inspection.includes('Disclosure'));
   assert.ok(inspection.includes("decision==='Aprobado'&&!(Number(amount)>0)"));
   // The states of every proposal stay visible.
   for(const state of ['Propuesto','Aprobado','Rechazado'])assert.ok(inspection.includes(state),state);
@@ -213,8 +213,9 @@ test('the closing stage states the status once and keeps a compact summary',()=>
 });
 
 test('the three closing extras are collapsed and clearly optional',()=>{
-  // Gastos and Fotos are details here; the contract block carries its own details organism.
-  assert.equal(occurrences(closing,'<details'),2);
+  // Gastos and Fotos use the finished disclosure; the contract block carries its own organism.
+  assert.equal(occurrences(closing,'<details'),0,'the raw disclosure must be gone from the closing stage');
+  assert.equal(occurrences(closing,'<Disclosure'),2);
   for(const hint of ['Opcional · registre un gasto solo si pagó algo de este alquiler',
     'Opcional · guarde fotos o soportes','Opcional · condiciones y aceptación del contrato']){
     assert.ok(closing.includes(hint),hint);

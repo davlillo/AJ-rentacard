@@ -7,6 +7,7 @@ import {useCaseAction} from '@/hooks/use-case-action';
 import {loadCustomerDocuments,uploadCustomerDocument,readCustomerDocument,type CustomerDocument} from '@/lib/supabase/customer-documents';
 import {rentalDateTime} from '@/controladores/rental-workflow';
 import styles from './customer-documents.module.css';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 const kinds=['DUI','Licencia'] as const;
 type DocumentKind=typeof kinds[number];
@@ -64,8 +65,8 @@ export function CustomerDocuments({customerId,customerName}:{customerId:string;c
           <Button type="submit" variant="outline">Guardar foto de {kind}</Button></fieldset></form>
       </article>;})}
     </div>
-    {files.length>0&&<details className="mt-4"><summary className="text-link">Historial de fotos ({files.length})</summary>{files.map(file=><p className="mt-3" key={file.id}>
-      <button type="button" className="text-link" disabled={busy} onClick={event=>view(file,file.kind,event.currentTarget)}>{file.kind} · {rentalDateTime(file.created_at)}</button></p>)}</details>}
+    {files.length>0&&<Disclosure className="mt-4" label={`Historial de fotos (${files.length})`}>{files.map(file=><p className="mt-3" key={file.id}>
+      <button type="button" className="text-link" disabled={busy} onClick={event=>view(file,file.kind,event.currentTarget)}>{file.kind} · {rentalDateTime(file.created_at)}</button></p>)}</Disclosure>}
     {(error||loadError)&&<p className="form-error mt-3" role="alert">{error||loadError}</p>}
     <Dialog open={Boolean(preview)||loading!==null} onOpenChange={open=>{if(!open)hide();}}>
       <DialogContent className={styles.viewer} onCloseAutoFocus={event=>{event.preventDefault();trigger.current?.focus();}}>

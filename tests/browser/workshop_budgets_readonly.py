@@ -35,7 +35,8 @@ FAIL_SAVE = {'on': False}
 
 
 def case_file():
-    return {**copy.deepcopy(fixture.case_file()), 'quotes': copy.deepcopy(STATE['quotes'])}
+    return {**copy.deepcopy(fixture.case_file()), 'quotes': copy.deepcopy(STATE['quotes']),
+            'costs': copy.deepcopy(STATE.get('costs') or [fixture.COST])}
 
 
 def saved_quote(payload):
@@ -183,6 +184,8 @@ def main():
             # The internal cost of the extra line stays optional.
             expect(page.get_by_label('Costo unitario 2')).to_have_value('')
             expect(page.get_by_text('Costo interno unitario (opcional)').first).to_be_visible()
+            # The appended line is marked as an additional item from the first click.
+            expect(page.locator('.budget-line').nth(1).get_by_text('Adicional', exact=True)).to_be_visible()
             # The parent version was approved, so the client has to agree again.
             expect(page.get_by_text('El cliente debe aprobar el nuevo total')).to_be_visible()
             expect(page.get_by_text('sigue vigente')).to_be_visible()
@@ -205,6 +208,12 @@ def main():
             page.keyboard.type('Parabrisas de repuesto')
             page.get_by_label('Precio unitario 2').fill('120')
             page.get_by_label('Observaciones / motivo del cambio').fill('Adicional acordado con el cliente por mensaje')
+            # The editor splits the client total by kind and prints no empty row.
+            expect(page.locator('.budget-tally').get_by_text('Repuestos (material)').first).to_be_visible()
+            expect(page.locator('.budget-tally').get_by_text('Mano de obra')).to_have_count(0)
+            # The editor splits the client total by kind and prints no empty row.
+            expect(page.locator('.budget-tally').get_by_text('Repuestos (material)').first).to_be_visible()
+            expect(page.locator('.budget-tally').get_by_text('Mano de obra')).to_have_count(0)
 
             # A rejected save keeps every value the operator typed.
             FAIL_SAVE['on'] = True
@@ -263,6 +272,55 @@ def main():
             expect(page.get_by_label('Descripción 2')).to_have_value('Parabrisas de repuesto')
             expect(page.get_by_text('El cliente debe aprobar el nuevo total')).to_be_visible()
             screenshot(page, 'extra-item-hint', 1440)
+
+            # Labor and material are separated in the quote detail, and a zero kind prints no row.
+            STATE['quotes'] = [{**copy.deepcopy(QUOTE), 'status': 'Aprobado'}]
+            STATE['active'] = 'synthetic-quote'
+            STATE['costs'] = [copy.deepcopy(fixture.COST)]
+            page.set_viewport_size({'width': 1440, 'height': 1000})
+            page.goto(APP + '/presupuestos/?id=' + QUOTE['id'], wait_until='networkidle')
+            expect(page.locator('.budget-tally').get_by_text('Repuestos (material)').first).to_be_visible()
+            expect(page.locator('.budget-tally').get_by_text('Mano de obra')).to_have_count(0)
+            expect(page.get_by_text('Adicional', exact=True)).to_have_count(0)
+
+            # An additional item keeps its badge, its amount and the state of its revision,
+            # and an authorized cost outside the approved scope is shown with its amount.
+            EXTRA = {'description': 'Parabrisas adicional', 'kind': 'Trabajo', 'quantity': 1, 'unitPrice': 120,
+                     'unitCost': 40, 'cost': 40, 'price': 120}
+            approved = {**copy.deepcopy(QUOTE), 'status': 'Aprobado'}
+            draft = {**copy.deepcopy(QUOTE), 'id': 'synthetic-quote-v2', 'revision': 2,
+                     'parent_id': QUOTE['id'], 'status': 'Borrador',
+                     'snapshot': {**copy.deepcopy(QUOTE['snapshot']),
+                                  'lines': [copy.deepcopy(fixture.LINE), EXTRA], 'subtotal': 220, 'total': 220,
+                                  'cost': 80, 'margin': 140}}
+            STATE['quotes'] = [draft, approved]
+            STATE['costs'] = [{**copy.deepcopy(fixture.COST), 'description': 'Inyectores', 'amount': 40,
+                               'disposition': 'Adicional autorizado', 'estimate_id': QUOTE['id']}]
+            DRAFT_URL = APP + '/presupuestos/?id=synthetic-quote-v2'
+            page.goto(DRAFT_URL, wait_until='networkidle')
+            tally = page.locator('.budget-tally')
+            expect(tally.get_by_text('Repuestos (material)').first).to_be_visible()
+            expect(tally.get_by_text('Mano de obra').first).to_be_visible()
+            expect(page.get_by_text('Adicional', exact=True).first).to_be_visible()
+            block = page.get_by_role('region', name='Adicionales del presupuesto')
+            expect(block).to_be_visible()
+            expect(block).to_contain_text('Parabrisas adicional')
+            expect(block).to_contain_text('120')
+            expect(block).to_contain_text('pendiente de aprobación')
+            expect(block).to_contain_text('Adicional autorizado fuera del presupuesto:')
+            expect(block).to_contain_text('Inyectores')
+            # The editor repeats the same summary for the work it is editing.
+            page.goto(APP + '/presupuestos/?trabajo=OT-99001', wait_until='networkidle')
+            editor_block = page.get_by_role('region', name='Adicionales del presupuesto')
+            expect(editor_block).to_contain_text('Parabrisas adicional')
+            expect(editor_block).to_contain_text('pendiente de aprobación')
+            expect(editor_block).to_contain_text('Adicional autorizado fuera del presupuesto:')
+            page.goto(DRAFT_URL, wait_until='networkidle')
+            for width in [1440, 1024, 390, 320]:
+                page.set_viewport_size({'width': width, 'height': 1000})
+                page.goto(DRAFT_URL, wait_until='networkidle')
+                expect(block).to_be_visible()
+                screenshot(page, 'labor-material-additional', width)
 
             assert not BLOCKED, BLOCKED
             assert not ERRORS, ERRORS

@@ -1,6 +1,9 @@
 .screen { min-width: 0; }
 .identity { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 20px; }
 .identity span { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: var(--card); font-size: 12px; font-weight: 600; }
+/* The polite line that states the stage the folio moved to after a successful action. */
+.advanceNotice { margin: 0 0 20px; padding: 10px 14px; border-inline-start: 3px solid var(--primary); border-radius: 10px;
+  background: color-mix(in srgb,var(--primary) 8%,var(--card)); font-size: 13px; font-weight: 650; }
 .sections { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
 .sections button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
 .sections button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }

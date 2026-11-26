@@ -24,6 +24,7 @@ import {ExpenseInbox} from './linked-expense';
 import {CaseCostAllocations} from './case-cost-allocations';
 import {orderHref,type CaseFile} from '@/lib/supabase/cases';
 import styles from './workshop-costs.module.css';
+import {Disclosure} from '@/components/organisms/disclosure';
 
 type EntryMode=''|'linked';
 const costFormId='workshop-cost-entry-form';
@@ -373,7 +374,7 @@ export function WorkshopCosts({orderId,file,onChange,onReviewQuotes,actionVarian
                     <p className="field-hint">Registrar un pago no aumenta el costo ni modifica el desglose o el precio del cliente.</p>
                     {payments.filter(payment=>payment.direct_purchase_cost_id===cost.id).map(payment=><p key={payment.id}>
                       {payment.date} · {money(payment.amount)} <Link className="text-link" href={diaryHref(orderId,'expense:'+payment.id,payment.date)}>Ver pago en Libro diario →</Link></p>)}
-                    {writable&&summary.pending!==null&&summary.pending>0&&<details><summary>Registrar pago al proveedor</summary>
+                    {writable&&summary.pending!==null&&summary.pending>0&&<Disclosure label="Registrar pago al proveedor">
                       <form className="operation-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget;const f=new FormData(form);
                         void pay(cost.id,Object.fromEntries(['amount','date','method','account'].map(key=>[key,String(f.get(key)??'')])),form);
                       }}><fieldset disabled={busy||!!loadError} className={styles.fields}>
@@ -382,7 +383,7 @@ export function WorkshopCosts({orderId,file,onChange,onReviewQuotes,actionVarian
                         <label className="form-field"><span>Medio del pago</span><select name="method"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></label>
                         <label className="form-field"><span>Cuenta del pago</span><input name="account" required/></label>
                         <Button variant="outline" type="submit">Guardar pago sin duplicar costo</Button>
-                      </fieldset></form></details>}
+                      </fieldset></form></Disclosure>}
                   </>:<p>El pago corresponde al gasto original del diario. No registre otro pago desde este costo.</p>}
                 </section>
               </article>;
@@ -421,5 +422,5 @@ function ClassificationForm({cost,quotes,busy,internal,onSubmit,expanded=false}:
   // A pending decision is the work of the moment: it mounts open, without a
   // collapsed summary. A decided cost keeps its compact disclosure.
   if(expanded)return <div className={styles.classifyOpen}>{form}</div>;
-  return <details><summary>Revisar relación con el presupuesto</summary>{form}</details>;
+  return <Disclosure label="Revisar relación con el presupuesto">{form}</Disclosure>;
 }
